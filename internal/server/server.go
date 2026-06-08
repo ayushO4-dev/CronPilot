@@ -17,11 +17,12 @@ import (
 
 	"github.com/ayushkanoje/cronpilot/internal/auth"
 	"github.com/ayushkanoje/cronpilot/internal/config"
+	"github.com/ayushkanoje/cronpilot/internal/processes"
 	"github.com/ayushkanoje/cronpilot/internal/store"
 )
 
 // Version is the daemon version, surfaced in settings/health.
-const Version = "0.1.2b"
+const Version = "0.1.3"
 
 // Server holds shared dependencies for the HTTP handlers.
 type Server struct {
@@ -31,11 +32,12 @@ type Server struct {
 	webFS    fs.FS
 	log      *slog.Logger
 	upgrader websocket.Upgrader
+	procs    *processes.Sampler
 }
 
 // New constructs a Server.
 func New(cfg *config.Config, st *store.Store, am *auth.Manager, webFS fs.FS, log *slog.Logger) *Server {
-	s := &Server{cfg: cfg, store: st, auth: am, webFS: webFS, log: log}
+	s := &Server{cfg: cfg, store: st, auth: am, webFS: webFS, log: log, procs: processes.NewSampler()}
 	s.upgrader = websocket.Upgrader{
 		ReadBufferSize:  4096,
 		WriteBufferSize: 4096,
@@ -66,6 +68,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/services/{name}", s.requireAuth(s.handleServiceGet))
 	mux.HandleFunc("GET /api/services/{name}/logs", s.requireAuth(s.handleServiceLogs))
 	mux.HandleFunc("POST /api/services/{name}/{action}", s.requireAuth(s.handleServiceAction))
+
+	// Processes (running applications)
+	mux.HandleFunc("GET /api/processes", s.requireAuth(s.handleProcessesList))
+	mux.HandleFunc("GET /api/processes/{pid}", s.requireAuth(s.handleProcessGet))
+	mux.HandleFunc("POST /api/processes/{pid}/{signal}", s.requireAuth(s.handleProcessSignal))
 
 	// Settings
 	mux.HandleFunc("GET /api/settings", s.requireAuth(s.handleGetSettings))

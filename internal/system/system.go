@@ -166,18 +166,25 @@ type Sample struct {
 	NetTxBytesPerSec float64   `json:"netTxBytesPerSec"`
 }
 
-// Sampler produces successive Samples, computing network rates from deltas.
+// Sampler produces successive Samples. CPU% is computed from the delta in
+// per-core CPU times since the previous Sample, kept on the Sampler itself —
+// it does NOT use gopsutil's shared global cpu.Percent(0,...) state, so multiple
+// concurrent streams (tabs, reconnects) never interfere. Network rates are
+// bytes/sec since the previous Sample.
 type Sampler struct {
+	lastCPU  []cpu.TimesStat
 	lastRx   uint64
 	lastTx   uint64
 	lastTime time.Time
 	primed   bool
 }
 
-// NewSampler primes the CPU and network counters so the first Sample is accurate.
+// NewSampler primes the CPU and network counters.
 func NewSampler() *Sampler {
 	s := &Sampler{}
-	_, _ = cpu.Percent(0, true) // prime per-core baseline
+	if t, err := cpu.Times(true); err == nil {
+		s.lastCPU = t
+	}
 	if io, err := net.IOCounters(false); err == nil && len(io) > 0 {
 		s.lastRx, s.lastTx = io[0].BytesRecv, io[0].BytesSent
 		s.lastTime = time.Now()
@@ -186,16 +193,37 @@ func NewSampler() *Sampler {
 	return s
 }
 
-// Sample reads current metrics. CPU percentages are measured since the previous
-// call; network rates are bytes/sec since the previous call.
+// Sample reads current metrics, computing CPU% and network rates against the
+// previous reading.
 func (s *Sampler) Sample() (*Sample, error) {
 	now := time.Now()
 	out := &Sample{Time: now.Unix()}
 
-	if per, err := cpu.Percent(0, true); err == nil {
+	if cur, err := cpu.Times(true); err == nil {
+		prev := make(map[string]cpu.TimesStat, len(s.lastCPU))
+		for _, p := range s.lastCPU {
+			prev[p.CPU] = p
+		}
+		per := make([]float64, 0, len(cur))
+		var sum float64
+		var n int
+		for _, c := range cur {
+			if p, ok := prev[c.CPU]; ok {
+				b := busyPercent(p, c)
+				per = append(per, b)
+				sum += b
+				n++
+			} else {
+				per = append(per, 0)
+			}
+		}
 		out.PerCore = per
-		out.CPUPercent = average(per)
+		if n > 0 {
+			out.CPUPercent = sum / float64(n)
+		}
+		s.lastCPU = cur
 	}
+
 	if vm, err := mem.VirtualMemory(); err == nil {
 		out.MemUsed, out.MemTotal, out.MemUsedPercent = vm.Used, vm.Total, vm.UsedPercent
 	}
@@ -216,6 +244,29 @@ func (s *Sampler) Sample() (*Sample, error) {
 		s.lastRx, s.lastTx, s.lastTime, s.primed = rx, tx, now, true
 	}
 	return out, nil
+}
+
+// busyPercent returns the busy CPU percentage between two cumulative readings.
+func busyPercent(prev, cur cpu.TimesStat) float64 {
+	totalDelta := cpuTotal(cur) - cpuTotal(prev)
+	if totalDelta <= 0 {
+		return 0
+	}
+	idleDelta := (cur.Idle + cur.Iowait) - (prev.Idle + prev.Iowait)
+	busy := (totalDelta - idleDelta) / totalDelta * 100
+	if busy < 0 {
+		return 0
+	}
+	if busy > 100 {
+		return 100
+	}
+	return busy
+}
+
+// cpuTotal sums CPU time fields. Guest/GuestNice are excluded because Linux
+// already accounts them within User/Nice.
+func cpuTotal(t cpu.TimesStat) float64 {
+	return t.User + t.System + t.Idle + t.Nice + t.Iowait + t.Irq + t.Softirq + t.Steal
 }
 
 func average(xs []float64) float64 {

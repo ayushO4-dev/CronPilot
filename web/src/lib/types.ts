@@ -109,3 +109,23 @@ export interface ServiceDetail extends ServiceUnit {
   memoryCurrent: number
   since: string
 }
+
+export interface ProcessInfo {
+  pid: number
+  ppid: number
+  name: string
+  user: string
+  cpuPercent: number
+  memoryPercent: number
+  rss: number
+  status: string
+  cmdline: string
+  createTime: number
+}
+
+export interface ProcessDetail extends ProcessInfo {
+  exe: string
+  cwd: string
+  numThreads: number
+  nice: number
+}

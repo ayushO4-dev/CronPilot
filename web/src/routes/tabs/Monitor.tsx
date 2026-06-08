@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../../lib/api'
 import type { Summary } from '../../lib/types'
-import { useSystemStream } from '../../lib/useSystemStream'
+import { useMetrics } from '../../lib/metrics'
 import { Chart } from '../../components/Chart'
 import { Meter, Panel } from '../../components/ui'
 import { bytes, percent } from '../../lib/format'
@@ -18,7 +18,7 @@ export function Monitor() {
     queryFn: () => api.get<Summary>('/api/system/summary'),
     refetchInterval: 5000,
   })
-  const { history, latest, connected } = useSystemStream()
+  const { history, latest, connected } = useMetrics()
 
   const accent = cssVar('--accent', '#4a9eff')
   const ok = cssVar('--ok', '#3fb950')
@@ -26,7 +26,11 @@ export function Monitor() {
 
   const xs = history.map((s) => s.time)
   const cpuData: number[][] = [xs, history.map((s) => s.cpuPercent)]
-  const memData: number[][] = [xs, history.map((s) => s.memUsedPercent)]
+  const memData: number[][] = [
+    xs,
+    history.map((s) => s.memUsedPercent),
+    history.map((s) => s.swapUsedPercent),
+  ]
   const netData: number[][] = [
     xs,
     history.map((s) => s.netRxBytesPerSec),
@@ -40,10 +44,25 @@ export function Monitor() {
     <div className={styles.page}>
       <div className={styles.grid2}>
         <Panel title={`CPU  ${latest ? percent(latest.cpuPercent) : ''}`}>
-          <Chart data={cpuData} series={[{ label: 'CPU %', color: accent }]} yMax={100} yFmt={(v) => `${v.toFixed(0)}%`} />
+          <Chart data={cpuData} series={[{ label: 'CPU %', color: accent }]} yMax={100} smooth area xAxis={false} yAxis={false} />
         </Panel>
-        <Panel title={`Memory  ${latest ? percent(latest.memUsedPercent) : ''}`}>
-          <Chart data={memData} series={[{ label: 'Mem %', color: warn }]} yMax={100} yFmt={(v) => `${v.toFixed(0)}%`} />
+        <Panel
+          title={`Memory ${latest ? percent(latest.memUsedPercent) : ''}${
+            latest ? ` · Swap ${percent(latest.swapUsedPercent)}` : ''
+          }`}
+        >
+          <Chart
+            data={memData}
+            series={[
+              { label: 'Mem %', color: warn },
+              { label: 'Swap %', color: accent },
+            ]}
+            yMax={100}
+            smooth
+            area
+            xAxis={false}
+            yAxis={false}
+          />
         </Panel>
       </div>
 
@@ -56,6 +75,9 @@ export function Monitor() {
           ]}
           height={140}
           yFmt={(v) => `${bytes(v)}/s`}
+          smooth
+          area
+          xAxis={false}
         />
       </Panel>
 

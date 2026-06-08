@@ -5,9 +5,9 @@ server it manages and serves a minimal web UI. Secure login, a tabbed dashboard,
 live system-resource monitoring, a web terminal, and (in later phases) systemd
 service control, a process view, and a ladder-logic task-automation engine.
 
-> **Status: Phase 2.** Implemented: secure auth, system monitor, web terminal,
-> settings, and **systemd service management**. Planned: Applications and the
-> Tasks/ladder engine (see [Roadmap](#roadmap)).
+> **Status: Phase 3.** Implemented: secure auth, system monitor, web terminal,
+> settings, **systemd service management**, and **a running-applications
+> (process) view**. Planned: the Tasks/ladder engine (see [Roadmap](#roadmap)).
 
 ## Design
 
@@ -112,7 +112,7 @@ web/               React + TypeScript frontend (Vite)
 ## Roadmap
 
 - **Phase 2 — Services (done):** systemd list/detail, start/stop/restart/enable/disable, recent journal logs. Reads via `systemctl --output=json`/`journalctl`; writes via `systemctl` (escalated with `sudo -n` when not root).
-- **Phase 3 — Applications:** process list, resource usage, signals.
+- **Phase 3 — Applications (done):** process list with delta CPU%, per-process detail, and signals (TERM/KILL/HUP/INT). Signals via `kill` (escalated with `sudo -n` when not root).
 - **Phase 4 — Tasks:** ladder-logic automation (contacts/coils, time/event/boolean
   triggers, command execution) with a React Flow editor.
 - **Phase 5 — Hardening:** TOTP 2FA, packaging (systemd unit, sudoers, installer).

@@ -41,28 +41,22 @@ func (s *Server) handleSystemStream(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	sampler := system.NewSampler()
-	ticker := time.NewTicker(1500 * time.Millisecond)
+	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	send := func() bool {
-		sample, err := sampler.Sample()
-		if err != nil {
-			return true
-		}
-		conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
-		return conn.WriteJSON(sample) == nil
-	}
-
-	// Send one immediately so the UI populates without waiting a full tick.
-	if !send() {
-		return
-	}
+	// The first tick (1s after priming) carries a real CPU measurement; the
+	// client pre-seeds its window from it, so there is no early zero reading.
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if !send() {
+			sample, err := sampler.Sample()
+			if err != nil {
+				continue
+			}
+			conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			if conn.WriteJSON(sample) != nil {
 				return
 			}
 		}

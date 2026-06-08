@@ -9,6 +9,7 @@ import { Monitor } from './routes/tabs/Monitor'
 import { Terminal } from './routes/tabs/Terminal'
 import { Settings } from './routes/tabs/Settings'
 import { Services } from './routes/tabs/Services'
+import { Applications } from './routes/tabs/Applications'
 import { Placeholder } from './routes/tabs/Placeholder'
 
 export function App() {
@@ -31,7 +32,7 @@ export function App() {
           <Route path="overview" element={<Overview />} />
           <Route path="monitor" element={<Monitor />} />
           <Route path="services" element={<Services />} />
-          <Route path="applications" element={<Placeholder title="Applications" phase={3} />} />
+          <Route path="applications" element={<Applications />} />
           <Route path="tasks" element={<Placeholder title="Tasks" phase={4} />} />
           <Route path="terminal" element={<Terminal />} />
           <Route path="settings" element={<Settings />} />

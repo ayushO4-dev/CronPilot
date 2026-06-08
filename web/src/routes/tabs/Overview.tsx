@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../../lib/api'
 import type { Summary } from '../../lib/types'
-import { useSystemStream } from '../../lib/useSystemStream'
+import { useMetrics } from '../../lib/metrics'
 import { Loading, Meter, Panel, Stat } from '../../components/ui'
 import { bps, bytes, duration, percent } from '../../lib/format'
 import styles from './tabs.module.css'
@@ -12,7 +12,7 @@ export function Overview() {
     queryFn: () => api.get<Summary>('/api/system/summary'),
     refetchInterval: 5000,
   })
-  const { latest } = useSystemStream()
+  const { latest } = useMetrics()
 
   if (!summary) return <Loading text="reading system" />
 
@@ -48,6 +48,16 @@ export function Overview() {
               sub={`${bytes(summary.memory.used)} / ${bytes(summary.memory.total)}`}
             />
             <Meter value={mem} />
+          </div>
+        </Panel>
+        <Panel>
+          <div className={styles.meterRow}>
+            <Stat
+              label="Swap"
+              value={summary.swap.total ? percent(summary.swap.usedPercent) : '—'}
+              sub={summary.swap.total ? `${bytes(summary.swap.used)} / ${bytes(summary.swap.total)}` : 'not configured'}
+            />
+            <Meter value={summary.swap.total ? summary.swap.usedPercent : 0} />
           </div>
         </Panel>
         <Panel>
