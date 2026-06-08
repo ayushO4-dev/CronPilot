@@ -1,0 +1,98 @@
+package server
+
+import (
+	"encoding/json"
+	"net/http"
+	"strconv"
+
+	"github.com/gorilla/websocket"
+
+	"github.com/ayushkanoje/cronpilot/internal/auth"
+	"github.com/ayushkanoje/cronpilot/internal/terminal"
+)
+
+// handleTerminal upgrades to a WebSocket and bridges it to a PTY-backed shell.
+// Protocol: client text frames are JSON control messages ({type:"input"|"resize"});
+// server frames are raw shell output (binary).
+func (s *Server) handleTerminal(w http.ResponseWriter, r *http.Request) {
+	user, _, _ := auth.UserFrom(r.Context())
+
+	cols := parseDim(r.URL.Query().Get("cols"), 80)
+	rows := parseDim(r.URL.Query().Get("rows"), 24)
+
+	conn, err := s.upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	sess, err := terminal.Start(s.cfg.ShellPath, cols, rows)
+	if err != nil {
+		_ = conn.WriteMessage(websocket.TextMessage, []byte("failed to start shell: "+err.Error()))
+		return
+	}
+	defer sess.Close()
+
+	if user != nil {
+		s.audit(r, user.ID, user.Username, "terminal_open", "")
+	}
+
+	// PTY output -> client.
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			n, err := sess.Read(buf)
+			if n > 0 {
+				if werr := conn.WriteMessage(websocket.BinaryMessage, buf[:n]); werr != nil {
+					return
+				}
+			}
+			if err != nil {
+				conn.Close()
+				return
+			}
+		}
+	}()
+
+	// Client -> PTY.
+	type clientMsg struct {
+		Type string `json:"type"`
+		Data string `json:"data"`
+		Cols uint16 `json:"cols"`
+		Rows uint16 `json:"rows"`
+	}
+	for {
+		mt, data, err := conn.ReadMessage()
+		if err != nil {
+			return
+		}
+		switch mt {
+		case websocket.TextMessage:
+			var msg clientMsg
+			if json.Unmarshal(data, &msg) != nil {
+				continue
+			}
+			switch msg.Type {
+			case "input":
+				_, _ = sess.Write([]byte(msg.Data))
+			case "resize":
+				if msg.Cols > 0 && msg.Rows > 0 {
+					_ = sess.Resize(msg.Cols, msg.Rows)
+				}
+			}
+		case websocket.BinaryMessage:
+			_, _ = sess.Write(data)
+		}
+	}
+}
+
+func parseDim(s string, def uint16) uint16 {
+	if s == "" {
+		return def
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n <= 0 || n > 1000 {
+		return def
+	}
+	return uint16(n)
+}

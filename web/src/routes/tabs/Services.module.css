@@ -1,0 +1,132 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border: 1px solid var(--err);
+  background: color-mix(in srgb, var(--err) 12%, transparent);
+  color: var(--fg-strong);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--fs-sm);
+}
+.dismiss {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: var(--fs-sm);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.toolbar > :first-child {
+  max-width: 280px;
+}
+.filters {
+  display: flex;
+  gap: var(--space-2);
+}
+.count {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+
+.tablePanel {
+  padding: 0;
+}
+.tableWrap {
+  max-height: 52vh;
+  overflow: auto;
+}
+.tableWrap thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-elev);
+  z-index: 1;
+}
+
+tr.selectedRow > td {
+  background: var(--bg-hover);
+}
+.tableWrap tbody tr {
+  cursor: pointer;
+}
+.tableWrap tbody tr:hover > td {
+  background: var(--bg-hover);
+}
+
+.unitCell {
+  min-width: 280px;
+  white-space: normal;
+}
+.unitName {
+  color: var(--fg-strong);
+}
+.desc {
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.muted {
+  color: var(--muted);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
+.detail {
+  display: flex;
+  flex-direction: column;
+}
+.detailTable th {
+  width: 130px;
+  color: var(--muted);
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  vertical-align: top;
+}
+.detailTable td {
+  white-space: normal;
+}
+.path {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  word-break: break-all;
+}
+
+.logsHead {
+  margin-top: var(--space-3);
+  margin-bottom: var(--space-2);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.logs {
+  margin: 0;
+  max-height: 320px;
+  overflow: auto;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--fg);
+}

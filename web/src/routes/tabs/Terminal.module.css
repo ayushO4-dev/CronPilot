@@ -1,0 +1,11 @@
+.wrap {
+  height: 100%;
+  min-height: 0;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  padding: var(--space-2);
+}
+
+.term {
+  height: 100%;
+}

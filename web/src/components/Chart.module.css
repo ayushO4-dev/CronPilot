@@ -1,0 +1,8 @@
+.chart {
+  width: 100%;
+}
+
+/* Match uPlot's chrome to the theme. */
+.chart :global(.u-axis) {
+  color: var(--muted);
+}

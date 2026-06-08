@@ -1,0 +1,76 @@
+/*
+ * Design tokens. The aesthetic is deliberately minimal: a monospace typeface,
+ * no rounded corners, 1px hairline borders for structure, and a near-monochrome
+ * palette where saturated color is reserved for status only.
+ */
+
+:root,
+:root[data-theme='dark'] {
+  --bg: #0b0c0e;
+  --bg-elev: #101216;
+  --bg-inset: #16191e;
+  --bg-hover: #1b1f25;
+
+  --fg: #cfd6dd;
+  --fg-strong: #f2f5f7;
+  --muted: #828b95;
+  --faint: #5a626c;
+
+  --border: #23272e;
+  --border-strong: #333a43;
+
+  --accent: #4a9eff;
+  --accent-fg: #04101f;
+
+  --ok: #3fb950;
+  --warn: #d29922;
+  --err: #f85149;
+
+  --selection: rgba(74, 158, 255, 0.28);
+}
+
+:root[data-theme='light'] {
+  --bg: #ffffff;
+  --bg-elev: #f6f7f8;
+  --bg-inset: #eceef1;
+  --bg-hover: #e6e9ec;
+
+  --fg: #1f242a;
+  --fg-strong: #0a0d10;
+  --muted: #5c646d;
+  --faint: #8b929b;
+
+  --border: #d7dbe0;
+  --border-strong: #bcc2c9;
+
+  --accent: #0969da;
+  --accent-fg: #ffffff;
+
+  --ok: #1a7f37;
+  --warn: #9a6700;
+  --err: #cf222e;
+
+  --selection: rgba(9, 105, 218, 0.18);
+}
+
+:root {
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', 'Cascadia Code',
+    Consolas, 'Liberation Mono', monospace;
+
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 13px;
+  --fs-lg: 15px;
+  --fs-xl: 19px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --line: 1.5;
+  --header-h: 44px;
+  --tabs-h: 38px;
+}
