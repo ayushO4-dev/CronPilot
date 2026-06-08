@@ -48,7 +48,7 @@ export function Chart({
 
     const opts: uPlot.Options = {
       width: el.clientWidth || 400,
-      height,
+      height: el.clientHeight || height,
       cursor: { x: true, y: false, points: { show: false } },
       legend: { show: false },
       scales: { x: { time: true }, y: yMax != null ? { range: [0, yMax] } : {} },
@@ -87,7 +87,10 @@ export function Chart({
 
     const ro = new ResizeObserver(() => {
       if (plotRef.current && elRef.current) {
-        plotRef.current.setSize({ width: elRef.current.clientWidth, height })
+        plotRef.current.setSize({
+          width: elRef.current.clientWidth || 400,
+          height: elRef.current.clientHeight || height,
+        })
       }
     })
     ro.observe(el)

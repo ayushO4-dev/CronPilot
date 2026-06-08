@@ -1,4 +1,5 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { Button } from '../components/ui'
 import { ChangePasswordForm } from '../components/ChangePasswordForm'
@@ -6,7 +7,6 @@ import styles from './Dashboard.module.css'
 
 const TABS = [
   { to: '/overview', label: 'Overview' },
-  { to: '/monitor', label: 'Monitor' },
   { to: '/services', label: 'Services' },
   { to: '/applications', label: 'Applications' },
   { to: '/tasks', label: 'Tasks' },
@@ -16,12 +16,31 @@ const TABS = [
 
 export function Dashboard() {
   const { user, logout } = useAuth()
+  const location = useLocation()
+  const navRef = useRef<HTMLElement>(null)
+  const [indicator, setIndicator] = useState<{ left: number; width: number } | null>(null)
+
+  function measure() {
+    const nav = navRef.current
+    if (!nav) return
+    const active = nav.querySelector<HTMLElement>('[aria-current="page"]')
+    if (active) setIndicator({ left: active.offsetLeft, width: active.offsetWidth })
+  }
+
+  // Reposition the sliding underline whenever the active route changes.
+  useLayoutEffect(measure, [location.pathname])
+
+  // Keep it aligned if the header reflows.
+  useEffect(() => {
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [])
 
   return (
     <div className={styles.shell}>
       <header className={styles.header}>
         <div className={styles.brand}>CronPilot</div>
-        <nav className={styles.tabs}>
+        <nav className={styles.tabs} ref={navRef}>
           {TABS.map((t) => (
             <NavLink
               key={t.to}
@@ -31,6 +50,9 @@ export function Dashboard() {
               {t.label}
             </NavLink>
           ))}
+          {indicator && (
+            <span className={styles.indicator} style={{ left: indicator.left, width: indicator.width }} />
+          )}
         </nav>
         <div className={styles.user}>
           <span className={styles.username}>{user?.username}</span>

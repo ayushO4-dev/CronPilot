@@ -5,7 +5,6 @@ import { Login } from './routes/Login'
 import { RequireAuth } from './routes/RequireAuth'
 import { Dashboard } from './routes/Dashboard'
 import { Overview } from './routes/tabs/Overview'
-import { Monitor } from './routes/tabs/Monitor'
 import { Terminal } from './routes/tabs/Terminal'
 import { Settings } from './routes/tabs/Settings'
 import { Services } from './routes/tabs/Services'
@@ -30,7 +29,6 @@ export function App() {
         >
           <Route index element={<Navigate to="/overview" replace />} />
           <Route path="overview" element={<Overview />} />
-          <Route path="monitor" element={<Monitor />} />
           <Route path="services" element={<Services />} />
           <Route path="applications" element={<Applications />} />
           <Route path="tasks" element={<Placeholder title="Tasks" phase={4} />} />

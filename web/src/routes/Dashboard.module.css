@@ -26,6 +26,7 @@
   display: flex;
   flex: 1;
   height: 100%;
+  position: relative;
 }
 
 .tab {
@@ -44,7 +45,16 @@
 }
 .active {
   color: var(--fg-strong);
-  border-bottom-color: var(--accent);
+}
+
+/* Sliding active-tab underline. */
+.indicator {
+  position: absolute;
+  bottom: 0;
+  height: 2px;
+  background: var(--accent);
+  transition: left 160ms ease, width 160ms ease;
+  pointer-events: none;
 }
 
 .user {

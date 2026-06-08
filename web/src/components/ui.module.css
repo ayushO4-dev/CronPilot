@@ -104,6 +104,9 @@
 }
 .panelBody {
   padding: var(--space-3);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
 }
 
 .dot {
