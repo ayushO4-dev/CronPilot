@@ -1,0 +1,397 @@
+.page {
+  display: flex;
+  gap: var(--space-3);
+  height: 100%;
+  min-height: 0;
+}
+
+/* ---- left: task list ---- */
+.list {
+  width: 280px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  min-height: 0;
+}
+.listHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+.listTitle {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: var(--fs-xs);
+}
+.listBody {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.emptyList {
+  color: var(--faint);
+  padding: var(--space-3);
+  font-size: var(--fs-sm);
+}
+.taskItem {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  color: var(--fg);
+}
+.taskItem:hover {
+  background: var(--bg-hover);
+}
+.taskItemSel {
+  background: var(--bg-hover);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.taskItemTop {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.taskName {
+  color: var(--fg-strong);
+  font-size: var(--fs-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.taskMeta {
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  margin-top: 2px;
+}
+
+/* ---- right: detail ---- */
+.detail {
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.detailInner {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+.empty {
+  color: var(--muted);
+  padding: var(--space-5);
+  font-size: var(--fs-sm);
+}
+
+.detailHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+.detailTitleWrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.detailTitle {
+  font-size: var(--fs-lg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.titleInput {
+  background: var(--bg-inset);
+  border: 1px solid var(--border-strong);
+  color: var(--fg-strong);
+  padding: 4px 8px;
+  font-size: var(--fs-lg);
+  font-family: inherit;
+}
+.detailActions {
+  display: flex;
+  gap: var(--space-2);
+  flex: none;
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border: 1px solid var(--err);
+  background: color-mix(in srgb, var(--err) 12%, transparent);
+  color: var(--fg-strong);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--fs-sm);
+  margin: var(--space-3) var(--space-3) 0;
+}
+.dismiss {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.sectionLabel {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: var(--fs-xs);
+  margin-top: var(--space-2);
+}
+.muted {
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+
+.triggerRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.triggerVal {
+  color: var(--fg-strong);
+  font-size: var(--fs-sm);
+}
+.triggerEdit {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.select,
+.input,
+.numInput,
+.addSelect {
+  background: var(--bg-inset);
+  border: 1px solid var(--border-strong);
+  color: var(--fg-strong);
+  padding: 4px 6px;
+  font-family: inherit;
+  font-size: var(--fs-sm);
+}
+.select:focus,
+.input:focus,
+.numInput:focus,
+.addSelect:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.input {
+  min-width: 120px;
+}
+.numInput {
+  width: 72px;
+}
+.addSelect {
+  color: var(--muted);
+  align-self: flex-start;
+}
+
+/* ---- ladder view ---- */
+.ladder {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+}
+.rung {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  border-left: 2px solid var(--border-strong);
+}
+.rung:last-child {
+  border-bottom: none;
+}
+.rungConds {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  flex: 1;
+}
+.condItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.joiner {
+  color: var(--faint);
+  font-size: var(--fs-xs);
+}
+.chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-inset);
+  font-size: var(--fs-xs);
+  color: var(--fg);
+  white-space: nowrap;
+}
+.chipNeg {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+.always {
+  color: var(--muted);
+  border-style: dashed;
+}
+.coil {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.arrow {
+  color: var(--faint);
+  flex: none;
+}
+.rungActs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  flex: none;
+}
+
+/* ---- run history ---- */
+.runs {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+}
+.runRow {
+  border-bottom: 1px solid var(--border);
+}
+.runRow:last-child {
+  border-bottom: none;
+}
+.runHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: var(--space-2) var(--space-3);
+  color: var(--fg);
+  font-size: var(--fs-sm);
+}
+.runHead:hover {
+  background: var(--bg-hover);
+}
+.runTime {
+  color: var(--fg-strong);
+}
+.runSummary {
+  flex: 1;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.runDetail {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-inset);
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-xs);
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--fg);
+  max-height: 240px;
+  overflow: auto;
+}
+
+.confirmText {
+  color: var(--fg);
+  font-size: var(--fs-sm);
+  margin: 0;
+}
+
+/* ---- editor ---- */
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.rungEdit {
+  border: 1px solid var(--border);
+}
+.rungEditHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-inset);
+}
+.rungNo {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.editCols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+.editCol {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.editRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.negToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .editCols {
+    grid-template-columns: 1fr;
+  }
+}

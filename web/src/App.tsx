@@ -9,7 +9,7 @@ import { Terminal } from './routes/tabs/Terminal'
 import { Settings } from './routes/tabs/Settings'
 import { Services } from './routes/tabs/Services'
 import { Applications } from './routes/tabs/Applications'
-import { Placeholder } from './routes/tabs/Placeholder'
+import { Tasks } from './routes/tabs/Tasks'
 
 export function App() {
   const { loading } = useAuth()
@@ -31,7 +31,7 @@ export function App() {
           <Route path="overview" element={<Overview />} />
           <Route path="services" element={<Services />} />
           <Route path="applications" element={<Applications />} />
-          <Route path="tasks" element={<Placeholder title="Tasks" phase={4} />} />
+          <Route path="tasks" element={<Tasks />} />
           <Route path="terminal" element={<Terminal />} />
           <Route path="settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/overview" replace />} />

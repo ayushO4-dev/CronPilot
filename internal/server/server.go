@@ -19,10 +19,11 @@ import (
 	"github.com/ayushkanoje/cronpilot/internal/config"
 	"github.com/ayushkanoje/cronpilot/internal/processes"
 	"github.com/ayushkanoje/cronpilot/internal/store"
+	"github.com/ayushkanoje/cronpilot/internal/tasks"
 )
 
 // Version is the daemon version, surfaced in settings/health.
-const Version = "0.1.3"
+const Version = "0.1.4"
 
 // Server holds shared dependencies for the HTTP handlers.
 type Server struct {
@@ -33,11 +34,12 @@ type Server struct {
 	log      *slog.Logger
 	upgrader websocket.Upgrader
 	procs    *processes.Sampler
+	tasks    *tasks.Manager
 }
 
 // New constructs a Server.
-func New(cfg *config.Config, st *store.Store, am *auth.Manager, webFS fs.FS, log *slog.Logger) *Server {
-	s := &Server{cfg: cfg, store: st, auth: am, webFS: webFS, log: log, procs: processes.NewSampler()}
+func New(cfg *config.Config, st *store.Store, am *auth.Manager, tm *tasks.Manager, webFS fs.FS, log *slog.Logger) *Server {
+	s := &Server{cfg: cfg, store: st, auth: am, tasks: tm, webFS: webFS, log: log, procs: processes.NewSampler()}
 	s.upgrader = websocket.Upgrader{
 		ReadBufferSize:  4096,
 		WriteBufferSize: 4096,
@@ -73,6 +75,15 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/processes", s.requireAuth(s.handleProcessesList))
 	mux.HandleFunc("GET /api/processes/{pid}", s.requireAuth(s.handleProcessGet))
 	mux.HandleFunc("POST /api/processes/{pid}/{signal}", s.requireAuth(s.handleProcessSignal))
+
+	// Tasks (ladder-logic automation)
+	mux.HandleFunc("GET /api/tasks", s.requireAuth(s.handleTasksList))
+	mux.HandleFunc("POST /api/tasks", s.requireAuth(s.handleTaskCreate))
+	mux.HandleFunc("GET /api/tasks/{id}", s.requireAuth(s.handleTaskGet))
+	mux.HandleFunc("PUT /api/tasks/{id}", s.requireAuth(s.handleTaskUpdate))
+	mux.HandleFunc("DELETE /api/tasks/{id}", s.requireAuth(s.handleTaskDelete))
+	mux.HandleFunc("GET /api/tasks/{id}/runs", s.requireAuth(s.handleTaskRuns))
+	mux.HandleFunc("POST /api/tasks/{id}/{action}", s.requireAuth(s.handleTaskAction))
 
 	// Settings
 	mux.HandleFunc("GET /api/settings", s.requireAuth(s.handleGetSettings))

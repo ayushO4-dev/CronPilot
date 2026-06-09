@@ -5,9 +5,10 @@ server it manages and serves a minimal web UI. Secure login, a tabbed dashboard,
 live system-resource monitoring, a web terminal, and (in later phases) systemd
 service control, a process view, and a ladder-logic task-automation engine.
 
-> **Status: Phase 3.** Implemented: secure auth, system monitor, web terminal,
-> settings, **systemd service management**, and **a running-applications
-> (process) view**. Planned: the Tasks/ladder engine (see [Roadmap](#roadmap)).
+> **Status: Phase 4.** Implemented: secure auth, a unified live **dashboard**,
+> **systemd service management**, a **running-applications** view, a web
+> **terminal**, settings, and the **ladder-logic task engine**. Planned:
+> hardening & packaging (see [Roadmap](#roadmap)).
 
 ## Design
 
@@ -105,6 +106,9 @@ internal/store     SQLite + migrations (users, sessions, settings, audit)
 internal/auth      Argon2id, sessions, rate limiting
 internal/system    gopsutil metrics (snapshot + live sampler)
 internal/terminal  PTY shell sessions
+internal/services  systemd units (systemctl/journalctl)
+internal/processes process list & signals (gopsutil)
+internal/tasks     ladder-logic engine (model, scheduler, executor)
 internal/server    router, middleware, handlers, embedded SPA
 web/               React + TypeScript frontend (Vite)
 ```
@@ -113,6 +117,11 @@ web/               React + TypeScript frontend (Vite)
 
 - **Phase 2 — Services (done):** systemd list/detail, start/stop/restart/enable/disable, recent journal logs. Reads via `systemctl --output=json`/`journalctl`; writes via `systemctl` (escalated with `sudo -n` when not root).
 - **Phase 3 — Applications (done):** process list with delta CPU%, per-process detail, and signals (TERM/KILL/HUP/INT). Signals via `kill` (escalated with `sudo -n` when not root).
-- **Phase 4 — Tasks:** ladder-logic automation (contacts/coils, time/event/boolean
-  triggers, command execution) with a React Flow editor.
-- **Phase 5 — Hardening:** TOTP 2FA, packaging (systemd unit, sudoers, installer).
+- **Phase 4 — Tasks (done):** ladder-logic automation. A task is a list of rungs;
+  each rung is ALL/ANY of contacts (service/process/time/metric/file/flag/taskState,
+  with negate) that, when true, run actions (command/service/flag/taskToggle/log).
+  Scheduled via interval or cron (robfig/cron), plus run-now; full run history.
+  UI: left task list + right ladder viewer/editor. (Form-based editor; a React Flow
+  drag-drop canvas is an optional future enhancement.)
+- **Phase 5 — Hardening:** TOTP 2FA, RBAC, built-in TLS, packaging (systemd unit,
+  scoped sudoers, installer).

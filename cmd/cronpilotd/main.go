@@ -17,6 +17,7 @@ import (
 	"github.com/ayushkanoje/cronpilot/internal/config"
 	"github.com/ayushkanoje/cronpilot/internal/server"
 	"github.com/ayushkanoje/cronpilot/internal/store"
+	"github.com/ayushkanoje/cronpilot/internal/tasks"
 )
 
 func main() {
@@ -48,7 +49,14 @@ func main() {
 	}
 
 	am := auth.NewManager(st, cfg)
-	srv := server.New(cfg, st, am, webFS, log)
+
+	taskMgr := tasks.NewManager(st, log)
+	if err := taskMgr.Start(); err != nil {
+		log.Error("start task engine", "err", err)
+		os.Exit(1)
+	}
+
+	srv := server.New(cfg, st, am, taskMgr, webFS, log)
 
 	// Background janitor: purge expired sessions.
 	stopJanitor := make(chan struct{})
@@ -98,6 +106,7 @@ func main() {
 	<-sigCh
 	log.Info("shutting down")
 	close(stopJanitor)
+	taskMgr.Stop()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

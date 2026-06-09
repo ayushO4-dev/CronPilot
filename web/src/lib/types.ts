@@ -129,3 +129,59 @@ export interface ProcessDetail extends ProcessInfo {
   numThreads: number
   nice: number
 }
+
+export type TriggerType = 'interval' | 'cron' | 'manual'
+
+export interface Trigger {
+  type: TriggerType
+  intervalSeconds?: number
+  cron?: string
+}
+
+export type MatchMode = 'all' | 'any'
+
+export interface Contact {
+  id?: string
+  kind: string
+  negate?: boolean
+  params: Record<string, unknown>
+}
+
+export interface Action {
+  id?: string
+  kind: string
+  params: Record<string, unknown>
+}
+
+export interface Rung {
+  id?: string
+  label?: string
+  match: MatchMode
+  contacts: Contact[]
+  actions: Action[]
+}
+
+export interface Task {
+  id: string
+  name: string
+  description?: string
+  enabled: boolean
+  trigger: Trigger
+  runAs?: string
+  rungs: Rung[]
+  createdAt?: string
+  updatedAt?: string
+  lastRun?: string | null
+  lastStatus?: string
+}
+
+export interface TaskRun {
+  id: number
+  taskId: string
+  time: string
+  trigger: string
+  ok: boolean
+  summary: string
+  detail?: string
+  durationMs: number
+}
