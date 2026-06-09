@@ -160,6 +160,8 @@ type Sample struct {
 	MemUsed          uint64    `json:"memUsed"`
 	MemTotal         uint64    `json:"memTotal"`
 	MemUsedPercent   float64   `json:"memUsedPercent"`
+	SwapUsed         uint64    `json:"swapUsed"`
+	SwapTotal        uint64    `json:"swapTotal"`
 	SwapUsedPercent  float64   `json:"swapUsedPercent"`
 	Load1            float64   `json:"load1"`
 	NetRxBytesPerSec float64   `json:"netRxBytesPerSec"`
@@ -228,6 +230,8 @@ func (s *Sampler) Sample() (*Sample, error) {
 		out.MemUsed, out.MemTotal, out.MemUsedPercent = vm.Used, vm.Total, vm.UsedPercent
 	}
 	if sw, err := mem.SwapMemory(); err == nil {
+		out.SwapUsed = sw.Used
+		out.SwapTotal = sw.Total
 		out.SwapUsedPercent = sw.UsedPercent
 	}
 	if la, err := load.Avg(); err == nil {

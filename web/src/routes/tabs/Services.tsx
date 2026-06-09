@@ -23,11 +23,17 @@ function statusOf(active: string): Status {
   }
 }
 
-type Filter = 'all' | 'active' | 'failed'
+type Filter = 'all' | 'running' | 'exited' | 'dead' | 'failed'
+type SortKey = 'name' | 'activeState' | 'subState' | 'enabled'
+type SortDir = 'asc' | 'desc'
+
+const FILTERS: Filter[] = ['all', 'running', 'exited', 'dead', 'failed']
 
 export function Services() {
   const [q, setQ] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
+  const [sortKey, setSortKey] = useState<SortKey>('name')
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [selected, setSelected] = useState<string | null>(null)
 
   const { data: units, isLoading, isError } = useQuery({
@@ -40,27 +46,42 @@ export function Services() {
   if (isError) return <div className={styles.error}>failed to load services</div>
 
   const needle = q.toLowerCase()
-  const filtered = (units ?? []).filter((u) => {
-    if (needle && !u.name.toLowerCase().includes(needle) && !u.description.toLowerCase().includes(needle)) {
-      return false
+  const rows = (units ?? [])
+    .filter((u) => {
+      if (needle && !u.name.toLowerCase().includes(needle) && !u.description.toLowerCase().includes(needle)) {
+        return false
+      }
+      if (filter === 'failed') return u.activeState === 'failed' || u.subState === 'failed'
+      if (filter !== 'all') return u.subState === filter
+      return true
+    })
+    .sort((a, b) => {
+      const r = String(a[sortKey]).localeCompare(String(b[sortKey]))
+      return sortDir === 'asc' ? r : -r
+    })
+
+  function setSort(key: SortKey) {
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
     }
-    if (filter === 'active' && u.activeState !== 'active') return false
-    if (filter === 'failed' && u.activeState !== 'failed') return false
-    return true
-  })
+  }
+  const arrow = (key: SortKey) => (key === sortKey ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '')
 
   return (
     <div className={styles.page}>
       <div className={styles.toolbar}>
         <Input placeholder="filter services…" value={q} onChange={(e) => setQ(e.target.value)} />
         <div className={styles.filters}>
-          {(['all', 'active', 'failed'] as const).map((f) => (
+          {FILTERS.map((f) => (
             <Button key={f} small variant={filter === f ? 'primary' : 'default'} onClick={() => setFilter(f)}>
               {f}
             </Button>
           ))}
         </div>
-        <span className={styles.count}>{filtered.length} units</span>
+        <span className={styles.count}>{rows.length} units</span>
       </div>
 
       <div className={styles.tableWrap}>
@@ -68,14 +89,22 @@ export function Services() {
           <thead>
             <tr>
               <th></th>
-              <th>Unit</th>
-              <th>Active</th>
-              <th>Sub</th>
-              <th>Enabled</th>
+              <th className={styles.sortable} onClick={() => setSort('name')}>
+                Unit{arrow('name')}
+              </th>
+              <th className={styles.sortable} onClick={() => setSort('activeState')}>
+                Active{arrow('activeState')}
+              </th>
+              <th className={styles.sortable} onClick={() => setSort('subState')}>
+                Sub{arrow('subState')}
+              </th>
+              <th className={styles.sortable} onClick={() => setSort('enabled')}>
+                Enabled{arrow('enabled')}
+              </th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((u) => (
+            {rows.map((u) => (
               <tr key={u.name} onClick={() => setSelected(u.name)}>
                 <td>
                   <StatusDot status={statusOf(u.activeState)} title={u.activeState} />
@@ -89,7 +118,7 @@ export function Services() {
                 <td className={styles.muted}>{u.enabled || '—'}</td>
               </tr>
             ))}
-            {filtered.length === 0 && (
+            {rows.length === 0 && (
               <tr>
                 <td colSpan={5} className={styles.muted}>
                   no matching units

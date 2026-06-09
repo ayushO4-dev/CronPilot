@@ -45,6 +45,14 @@
 .tableWrap tbody tr:hover > td {
   background: var(--bg-hover);
 }
+.sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.sortable:hover {
+  color: var(--fg);
+}
 
 .unitCell {
   min-width: 280px;

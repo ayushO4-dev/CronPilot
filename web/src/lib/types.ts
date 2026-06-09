@@ -88,6 +88,8 @@ export interface Sample {
   memUsed: number
   memTotal: number
   memUsedPercent: number
+  swapUsed: number
+  swapTotal: number
   swapUsedPercent: number
   load1: number
   netRxBytesPerSec: number

@@ -16,6 +16,9 @@ export function Chart({
   series,
   height = 120,
   yMax,
+  yMinCeil,
+  yFloor,
+  log = false,
   yFmt,
   smooth = false,
   area = false,
@@ -26,6 +29,9 @@ export function Chart({
   series: ChartSeries[]
   height?: number
   yMax?: number
+  yMinCeil?: number // y-axis top is at least this; grows if data exceeds it
+  yFloor?: number // y-axis bottom (must be > 0 for a log axis)
+  log?: boolean // logarithmic y-axis
   yFmt?: (v: number) => string
   smooth?: boolean
   area?: boolean
@@ -51,7 +57,23 @@ export function Chart({
       height: el.clientHeight || height,
       cursor: { x: true, y: false, points: { show: false } },
       legend: { show: false },
-      scales: { x: { time: true }, y: yMax != null ? { range: [0, yMax] } : {} },
+      scales: {
+        x: { time: true },
+        y: log
+          ? {
+              distr: 3,
+              range: (_u, _min, max) => {
+                const floor = yFloor ?? 1
+                const top = Math.max(yMinCeil ?? floor, max ?? 0, floor)
+                return [floor, top] as [number, number]
+              },
+            }
+          : yMax != null
+            ? { range: [0, yMax] }
+            : yMinCeil != null
+              ? { range: (_u, _min, max) => [0, Math.max(yMinCeil, max ?? yMinCeil)] as [number, number] }
+              : {},
+      },
       axes: [
         {
           show: xAxis,
@@ -101,7 +123,7 @@ export function Chart({
       plotRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [series.length, height, yMax, smooth, area, xAxis, yAxis])
+  }, [series.length, height, yMax, yMinCeil, yFloor, log, smooth, area, xAxis, yAxis])
 
   useEffect(() => {
     plotRef.current?.setData(data as uPlot.AlignedData)

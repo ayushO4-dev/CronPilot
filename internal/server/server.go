@@ -23,7 +23,7 @@ import (
 )
 
 // Version is the daemon version, surfaced in settings/health.
-const Version = "0.1.4"
+const Version = "0.1.4b"
 
 // Server holds shared dependencies for the HTTP handlers.
 type Server struct {

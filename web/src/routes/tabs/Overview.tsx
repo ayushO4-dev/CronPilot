@@ -36,16 +36,14 @@ export function Overview() {
 
   const xs = history.map((s) => s.time);
   const cpuData: number[][] = [xs, history.map((s) => s.cpuPercent)];
-  const memData: number[][] = [
-    xs,
-    history.map((s) => s.memUsedPercent),
-    history.map((s) => s.swapUsedPercent),
-  ];
+  const memData: number[][] = [xs, history.map((s) => s.memUsed)];
+  const swapData: number[][] = [xs, history.map((s) => s.swapUsed)];
   const netData: number[][] = [
     xs,
     history.map((s) => s.netRxBytesPerSec),
     history.map((s) => s.netTxBytesPerSec),
   ];
+  const gb = (v: number) => `${(v / 1024 ** 3).toFixed(1)} GB`;
 
   return (
     <div className={styles.dashPage}>
@@ -119,22 +117,34 @@ export function Overview() {
             yAxis={false}
           />
         </Panel>
-        <Panel
-          title={`Memory ${percent(mem)}${summary.swap.total ? ` · Swap ${percent(swap)}` : ""}`}
-        >
+        <Panel title={`Memory ${percent(mem)} · ${gb(summary.memory.total)}`}>
           <Chart
             data={memData}
-            series={[
-              { label: "Mem %", color: warn },
-              { label: "Swap %", color: accent },
-            ]}
-            yMax={100}
+            series={[{ label: "Mem", color: warn }]}
+            yMax={summary.memory.total || undefined}
+            yFmt={gb}
             smooth
             area
             xAxis={false}
-            yAxis={false}
           />
         </Panel>
+        {summary.swap.total > 0 ? (
+          <Panel title={`Swap ${percent(swap)} · ${gb(summary.swap.total)}`}>
+            <Chart
+              data={swapData}
+              series={[{ label: "Swap", color: accent }]}
+              yMax={summary.swap.total}
+              yFmt={gb}
+              smooth
+              area
+              xAxis={false}
+            />
+          </Panel>
+        ) : (
+          <Panel title="Swap">
+            <div className={styles.muted}>not configured</div>
+          </Panel>
+        )}
         <Panel
           title={`Network  ↓ ${bps(latest?.netRxBytesPerSec ?? 0)}  ↑ ${bps(latest?.netTxBytesPerSec ?? 0)}`}
         >
@@ -144,6 +154,7 @@ export function Overview() {
               { label: "rx", color: ok },
               { label: "tx", color: accent },
             ]}
+            yMinCeil={10 * 1024 * 1024}
             yFmt={(v) => `${bytes(v)}/s`}
             smooth
             area

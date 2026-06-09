@@ -14,7 +14,7 @@ export function Terminal() {
     const cs = getComputedStyle(document.documentElement)
     const term = new XTerm({
       fontFamily: cs.getPropertyValue('--font-mono').trim() || 'monospace',
-      fontSize: 13,
+      fontSize: 14,
       cursorBlink: true,
       theme: {
         background: cs.getPropertyValue('--bg').trim() || '#0b0c0e',
