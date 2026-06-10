@@ -12,6 +12,8 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 
@@ -23,7 +25,15 @@ import (
 )
 
 // Version is the daemon version, surfaced in settings/health.
-const Version = "0.1.4b"
+const Version = "0.1.5"
+
+// termTicket is a short-lived, one-time grant to open a terminal as a given
+// account (issued by handleTerminalSession after password verification).
+type termTicket struct {
+	user     string
+	password string
+	exp      time.Time
+}
 
 // Server holds shared dependencies for the HTTP handlers.
 type Server struct {
@@ -35,11 +45,18 @@ type Server struct {
 	upgrader websocket.Upgrader
 	procs    *processes.Sampler
 	tasks    *tasks.Manager
+
+	termMu      sync.Mutex
+	termTickets map[string]termTicket
 }
 
 // New constructs a Server.
 func New(cfg *config.Config, st *store.Store, am *auth.Manager, tm *tasks.Manager, webFS fs.FS, log *slog.Logger) *Server {
-	s := &Server{cfg: cfg, store: st, auth: am, tasks: tm, webFS: webFS, log: log, procs: processes.NewSampler()}
+	s := &Server{
+		cfg: cfg, store: st, auth: am, tasks: tm, webFS: webFS, log: log,
+		procs:       processes.NewSampler(),
+		termTickets: map[string]termTicket{},
+	}
 	s.upgrader = websocket.Upgrader{
 		ReadBufferSize:  4096,
 		WriteBufferSize: 4096,
@@ -64,6 +81,8 @@ func (s *Server) Handler() http.Handler {
 
 	// Terminal
 	mux.HandleFunc("GET /api/terminal", s.requireAuth(s.handleTerminal))
+	mux.HandleFunc("GET /api/terminal/users", s.requireAuth(s.handleTerminalUsers))
+	mux.HandleFunc("POST /api/terminal/session", s.requireAuth(s.handleTerminalSession))
 
 	// Services (systemd)
 	mux.HandleFunc("GET /api/services", s.requireAuth(s.handleServicesList))

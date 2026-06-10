@@ -7,6 +7,8 @@ import { Loading, Meter, Panel, Stat } from "../../components/ui";
 import { bps, bytes, duration, percent } from "../../lib/format";
 import styles from "./tabs.module.css";
 
+const MIB = 1024 * 1024;
+
 function cssVar(name: string, fallback: string): string {
   const v = getComputedStyle(document.documentElement)
     .getPropertyValue(name)
@@ -36,14 +38,22 @@ export function Overview() {
 
   const xs = history.map((s) => s.time);
   const cpuData: number[][] = [xs, history.map((s) => s.cpuPercent)];
-  const memData: number[][] = [xs, history.map((s) => s.memUsed)];
-  const swapData: number[][] = [xs, history.map((s) => s.swapUsed)];
+  // Memory/swap are charted in GiB so the axis ticks land on round GB values.
+  const GIB = 1024 ** 3;
+  const memData: number[][] = [xs, history.map((s) => s.memUsed / GIB)];
+  const swapData: number[][] = [xs, history.map((s) => s.swapUsed / GIB)];
+  const gbAxis = (v: number) => (v === 0 ? "0" : `${+v.toFixed(1)} GB`);
+  // Network is charted in MB/s so the y-axis ticks are clean decimals.
   const netData: number[][] = [
     xs,
-    history.map((s) => s.netRxBytesPerSec),
-    history.map((s) => s.netTxBytesPerSec),
+    history.map((s) => s.netRxBytesPerSec / MIB),
+    history.map((s) => s.netTxBytesPerSec / MIB),
   ];
   const gb = (v: number) => `${(v / 1024 ** 3).toFixed(1)} GB`;
+  const netPeakMB =
+    history.reduce((m, s) => Math.max(m, s.netRxBytesPerSec, s.netTxBytesPerSec), 0) / MIB;
+  // Default network scale 0→10 MB/s, growing in 10 MB steps if traffic exceeds it.
+  const netCeil = Math.max(10, Math.ceil(netPeakMB / 10) * 10);
 
   return (
     <div className={styles.dashPage}>
@@ -121,8 +131,9 @@ export function Overview() {
           <Chart
             data={memData}
             series={[{ label: "Mem", color: warn }]}
-            yMax={summary.memory.total || undefined}
-            yFmt={gb}
+            yMax={summary.memory.total ? summary.memory.total / GIB : undefined}
+            yFmt={gbAxis}
+            ySize={50}
             smooth
             area
             xAxis={false}
@@ -133,8 +144,9 @@ export function Overview() {
             <Chart
               data={swapData}
               series={[{ label: "Swap", color: accent }]}
-              yMax={summary.swap.total}
-              yFmt={gb}
+              yMax={summary.swap.total / GIB}
+              yFmt={gbAxis}
+              ySize={44}
               smooth
               area
               xAxis={false}
@@ -154,8 +166,8 @@ export function Overview() {
               { label: "rx", color: ok },
               { label: "tx", color: accent },
             ]}
-            yMinCeil={10 * 1024 * 1024}
-            yFmt={(v) => `${bytes(v)}/s`}
+            yMax={netCeil}
+            yFmt={(v) => (v === 0 ? "0" : `${+v.toFixed(1)} MB/s`)}
             smooth
             area
             xAxis={false}

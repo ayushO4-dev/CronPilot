@@ -273,6 +273,14 @@
   opacity: 1;
 }
 
+/* square icon button (rung move up/down) */
+.iconBox {
+  width: var(--control-h);
+  min-width: var(--control-h);
+  padding: 0;
+  justify-content: center;
+}
+
 /* square NOT toggle, sized to match the inputs in the row */
 .negBtn {
   height: var(--control-h);

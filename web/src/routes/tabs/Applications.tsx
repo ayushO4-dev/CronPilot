@@ -153,10 +153,6 @@ function ProcessModal({ pid, onClose }: { pid: number; onClose: () => void }) {
       <Button small variant="danger" disabled={signal.isPending} onClick={() => signal.mutate('kill')}>
         force kill
       </Button>
-      <span className={styles.spacer} />
-      <Button small onClick={onClose}>
-        close
-      </Button>
     </>
   )
 

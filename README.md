@@ -123,5 +123,6 @@ web/               React + TypeScript frontend (Vite)
   Scheduled via interval or cron (robfig/cron), plus run-now; full run history.
   UI: left task list + right ladder viewer/editor. (Form-based editor; a React Flow
   drag-drop canvas is an optional future enhancement.)
+  **Guide with examples: [docs/task-editor.md](docs/task-editor.md).**
 - **Phase 5 — Hardening:** TOTP 2FA, RBAC, built-in TLS, packaging (systemd unit,
   scoped sudoers, installer).

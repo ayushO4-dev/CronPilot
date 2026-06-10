@@ -1,4 +1,5 @@
 .wrap {
+  position: relative;
   height: 100%;
   min-height: 0;
   border: 1px solid var(--border);
@@ -8,4 +9,106 @@
 
 .term {
   height: 100%;
+}
+
+/* Full-screen account picker covering the tab content. */
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+.picker {
+  width: 440px;
+  max-width: 94%;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elev);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.pickerTitle {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--fg-strong);
+}
+
+.pickerSub {
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+
+.userList {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  max-height: 260px;
+  overflow: auto;
+  position: relative;
+}
+
+/* Sliding selection indicator, like the topbar underline. */
+.userIndicator {
+  position: absolute;
+  left: 0;
+  width: 2px;
+  background: var(--accent);
+  transition: top 160ms ease, height 160ms ease;
+  pointer-events: none;
+}
+
+.userRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--fg);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--fs-sm);
+}
+.userRow:last-child {
+  border-bottom: none;
+}
+.userRow:hover {
+  background: var(--bg-hover);
+}
+.userRowSel {
+  background: var(--bg-hover);
+}
+
+.userName {
+  color: var(--fg-strong);
+}
+
+.userMeta {
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.pickerNote {
+  color: var(--faint);
+  font-size: var(--fs-xs);
+}
+
+.pickerError {
+  border: 1px solid var(--err);
+  background: color-mix(in srgb, var(--err) 12%, transparent);
+  color: var(--fg-strong);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--fs-sm);
 }

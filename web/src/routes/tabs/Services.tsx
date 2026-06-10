@@ -23,11 +23,11 @@ function statusOf(active: string): Status {
   }
 }
 
-type Filter = 'all' | 'running' | 'exited' | 'dead' | 'failed'
+type Filter = 'all' | 'running' | 'exited' | 'dead' | 'failed' | 'enabled' | 'disabled'
 type SortKey = 'name' | 'activeState' | 'subState' | 'enabled'
 type SortDir = 'asc' | 'desc'
 
-const FILTERS: Filter[] = ['all', 'running', 'exited', 'dead', 'failed']
+const FILTERS: Filter[] = ['all', 'running', 'exited', 'dead', 'failed', 'enabled', 'disabled']
 
 export function Services() {
   const [q, setQ] = useState('')
@@ -52,6 +52,8 @@ export function Services() {
         return false
       }
       if (filter === 'failed') return u.activeState === 'failed' || u.subState === 'failed'
+      if (filter === 'enabled') return u.enabled === 'enabled'
+      if (filter === 'disabled') return u.enabled === 'disabled'
       if (filter !== 'all') return u.subState === filter
       return true
     })
@@ -161,20 +163,21 @@ function ServiceModal({ name, onClose }: { name: string; onClose: () => void }) 
   })
 
   const enabled = detail?.enabled === 'enabled'
+  const isActive = detail?.activeState === 'active'
 
   const footer = (
     <>
-      <Button small disabled={action.isPending} onClick={() => action.mutate('start')}>
+      <Button small disabled={action.isPending || isActive} onClick={() => action.mutate('start')}>
         start
       </Button>
-      <Button small disabled={action.isPending} onClick={() => action.mutate('stop')}>
+      <Button small variant="danger" disabled={action.isPending || !isActive} onClick={() => action.mutate('stop')}>
         stop
       </Button>
-      <Button small disabled={action.isPending} onClick={() => action.mutate('restart')}>
+      <Button small disabled={action.isPending || !isActive} onClick={() => action.mutate('restart')}>
         restart
       </Button>
       {enabled ? (
-        <Button small disabled={action.isPending} onClick={() => action.mutate('disable')}>
+        <Button small variant="danger" disabled={action.isPending} onClick={() => action.mutate('disable')}>
           disable
         </Button>
       ) : (
@@ -182,10 +185,6 @@ function ServiceModal({ name, onClose }: { name: string; onClose: () => void }) 
           enable
         </Button>
       )}
-      <span className={styles.spacer} />
-      <Button small onClick={onClose}>
-        close
-      </Button>
     </>
   )
 

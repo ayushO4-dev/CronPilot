@@ -187,3 +187,10 @@ export interface TaskRun {
   detail?: string
   durationMs: number
 }
+
+export interface TerminalUser {
+  name: string
+  uid: number
+  shell: string
+  current: boolean
+}

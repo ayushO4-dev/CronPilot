@@ -17,6 +17,7 @@ export function Chart({
   height = 120,
   yMax,
   yMinCeil,
+  yIncrs,
   yFloor,
   log = false,
   yFmt,
@@ -24,12 +25,14 @@ export function Chart({
   area = false,
   xAxis = true,
   yAxis = true,
+  ySize = 58,
 }: {
   data: number[][] // [xs, ...seriesValues]
   series: ChartSeries[]
   height?: number
   yMax?: number
   yMinCeil?: number // y-axis top is at least this; grows if data exceeds it
+  yIncrs?: number[] // explicit allowed y-axis tick increments
   yFloor?: number // y-axis bottom (must be > 0 for a log axis)
   log?: boolean // logarithmic y-axis
   yFmt?: (v: number) => string
@@ -37,6 +40,7 @@ export function Chart({
   area?: boolean
   xAxis?: boolean
   yAxis?: boolean
+  ySize?: number // y-axis gutter width; just wide enough for the labels
 }) {
   const elRef = useRef<HTMLDivElement>(null)
   const plotRef = useRef<uPlot | null>(null)
@@ -88,7 +92,9 @@ export function Chart({
           grid: { show: yAxis, stroke: border, width: 1 },
           ticks: { show: yAxis, stroke: border, width: 1 },
           font: '10px monospace',
-          size: yAxis ? 52 : 0,
+          // Must fit the widest label — too small clips them on the left.
+          size: yAxis ? ySize : 0,
+          incrs: yIncrs,
           values: yFmt ? (_u, splits) => splits.map((s) => yFmt(s)) : undefined,
         },
       ],
@@ -123,7 +129,7 @@ export function Chart({
       plotRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [series.length, height, yMax, yMinCeil, yFloor, log, smooth, area, xAxis, yAxis])
+  }, [series.length, height, yMax, yMinCeil, yIncrs, yFloor, log, smooth, area, xAxis, yAxis, ySize])
 
   useEffect(() => {
     plotRef.current?.setData(data as uPlot.AlignedData)

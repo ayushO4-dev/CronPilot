@@ -145,6 +145,9 @@ export function Tasks() {
     refetchInterval: 5000,
   });
 
+  // Tracks a just-created task so cancelling its first edit deletes it again.
+  const [newTaskId, setNewTaskId] = useState<string | null>(null);
+
   const create = useMutation({
     mutationFn: () =>
       api.post<Task>("/api/tasks", {
@@ -156,6 +159,7 @@ export function Tasks() {
     onSuccess: (t) => {
       qc.invalidateQueries({ queryKey: ["tasks"] });
       setSelectedId(t.id);
+      setNewTaskId(t.id);
     },
   });
 
@@ -236,7 +240,12 @@ export function Tasks() {
             key={selectedId}
             id={selectedId}
             allTasks={tasks}
-            onDeleted={() => setSelectedId(null)}
+            isNew={selectedId === newTaskId}
+            onSaved={() => setNewTaskId(null)}
+            onDeleted={() => {
+              setSelectedId(null);
+              setNewTaskId(null);
+            }}
           />
         ) : (
           <div className={styles.empty}>
@@ -251,10 +260,14 @@ export function Tasks() {
 function TaskDetail({
   id,
   allTasks,
+  isNew,
+  onSaved,
   onDeleted,
 }: {
   id: string;
   allTasks: Task[];
+  isNew: boolean;
+  onSaved: () => void;
   onDeleted: () => void;
 }) {
   const qc = useQueryClient();
@@ -306,6 +319,7 @@ function TaskDetail({
     onSuccess: () => {
       setError("");
       setEditMode(false);
+      onSaved();
       invalidate();
     },
     onError: (e) => setError(isApiError(e) ? e.error : "save failed"),
@@ -329,6 +343,11 @@ function TaskDetail({
     setError("");
   };
   const cancelEdit = () => {
+    // A brand-new task that was never saved is discarded entirely on cancel.
+    if (isNew) {
+      doDelete();
+      return;
+    }
     setEditMode(false);
     setDraft(null);
     setError("");
@@ -676,7 +695,7 @@ function LadderEditor({
             <span style={{ flex: 1 }} />
             <Button
               small
-              variant="ghost"
+              className={styles.iconBox}
               disabled={ri === 0}
               title="move up"
               onClick={() =>
@@ -690,7 +709,7 @@ function LadderEditor({
             </Button>
             <Button
               small
-              variant="ghost"
+              className={styles.iconBox}
               disabled={ri === draft.rungs.length - 1}
               title="move down"
               onClick={() =>
@@ -763,7 +782,8 @@ function LadderEditor({
                   />
                   <Button
                     small
-                    variant="ghost"
+                    className={styles.iconBox}
+                    title="remove condition"
                     onClick={() =>
                       patch((d) => {
                         d.rungs[ri].contacts.splice(ci, 1);
@@ -815,7 +835,8 @@ function LadderEditor({
                   />
                   <Button
                     small
-                    variant="ghost"
+                    className={styles.iconBox}
+                    title="remove action"
                     onClick={() =>
                       patch((d) => {
                         d.rungs[ri].actions.splice(ai, 1);
