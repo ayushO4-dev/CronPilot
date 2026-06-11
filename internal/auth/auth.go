@@ -22,6 +22,9 @@ var (
 	ErrRateLimited = errors.New("too many attempts, try again later")
 	// ErrWeakPassword is returned when a new password fails the policy.
 	ErrWeakPassword = errors.New("password does not meet strength requirements")
+	// ErrTOTPRequired is returned when a valid password needs a 2FA code that
+	// was missing or wrong.
+	ErrTOTPRequired = errors.New("two-factor code required")
 )
 
 // dummyHash is verified against when a username is unknown, to flatten the
@@ -46,9 +49,14 @@ func NewManager(st *store.Store, cfg *config.Config) *Manager {
 	return &Manager{store: st, cfg: cfg, lim: newLimiter(5, 15*time.Minute)}
 }
 
-// Login validates credentials and starts a session. key (usually the client IP)
-// is the rate-limit bucket.
-func (m *Manager) Login(username, password, key string) (*store.Session, *store.User, error) {
+// Login validates credentials (and a TOTP code when 2FA is enabled) and starts
+// a session. key (usually the client IP) is the rate-limit bucket.
+//
+// When the password is correct but the account has 2FA enabled and the supplied
+// code is missing/invalid, it returns ErrTOTPRequired (the password attempt was
+// valid, so the rate-limit bucket is not penalised) and the caller should prompt
+// for the code.
+func (m *Manager) Login(username, password, code, key string) (*store.Session, *store.User, error) {
 	if !m.lim.allow(key) {
 		return nil, nil, ErrRateLimited
 	}
@@ -65,6 +73,20 @@ func (m *Manager) Login(username, password, key string) (*store.Session, *store.
 	if err != nil || !ok {
 		m.lim.fail(key)
 		return nil, nil, ErrInvalidCredentials
+	}
+	if user.TOTPEnabled {
+		switch {
+		case code == "":
+			// Password is correct but a code is needed. Prompt for it without
+			// penalising the rate-limit bucket (the bucket resets only on a
+			// full success below).
+			return nil, nil, ErrTOTPRequired
+		case !VerifyTOTP(user.TOTPSecret, code):
+			// A supplied-but-wrong code is a genuine failed attempt, so it
+			// counts against the rate limiter to bound brute-forcing the code.
+			m.lim.fail(key)
+			return nil, nil, ErrInvalidTOTP
+		}
 	}
 	m.lim.reset(key)
 	sess, err := m.StartSession(user.ID)

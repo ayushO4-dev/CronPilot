@@ -5,10 +5,12 @@ server it manages and serves a minimal web UI. Secure login, a tabbed dashboard,
 live system-resource monitoring, a web terminal, and (in later phases) systemd
 service control, a process view, and a ladder-logic task-automation engine.
 
-> **Status: Phase 4.** Implemented: secure auth, a unified live **dashboard**,
-> **systemd service management**, a **running-applications** view, a web
-> **terminal**, settings, and the **ladder-logic task engine**. Planned:
-> hardening & packaging (see [Roadmap](#roadmap)).
+> **Status: Phase 5 (in progress).** Implemented: secure auth with optional
+> **TOTP 2FA**, a unified live **dashboard**, **systemd service management**, a
+> **running-applications** view, a web **terminal**, settings, the
+> **ladder-logic task engine**, and **production packaging** (systemd unit,
+> scoped sudoers, installer — see [docs/deploy.md](docs/deploy.md)). Remaining:
+> RBAC (see [Roadmap](#roadmap)).
 
 ## Design
 
@@ -94,8 +96,12 @@ cd web; npm run dev   # open http://localhost:5173
 - Bind to loopback and front with a TLS reverse proxy, **or** set
   `-tls-cert/-tls-key` for built-in HTTPS. The `Secure` cookie flag is set
   whenever not in `-dev` mode.
-- Run as a dedicated unprivileged user; grant privileged actions later via
-  allowlisted `sudoers` (see `deploy/` in upcoming phases) — never blanket root.
+- Run as a dedicated unprivileged user; grant privileged actions via the
+  allowlisted `sudoers` file in [`deploy/`](deploy/cronpilot.sudoers) (only
+  `systemctl` and `kill`) — never blanket root.
+- Enable **TOTP 2FA** per user in Settings for a second login factor.
+- For a full production setup (systemd unit, sudoers, TLS, reverse proxy), see
+  **[docs/deploy.md](docs/deploy.md)**.
 
 ## Project layout
 
@@ -124,5 +130,8 @@ web/               React + TypeScript frontend (Vite)
   UI: left task list + right ladder viewer/editor. (Form-based editor; a React Flow
   drag-drop canvas is an optional future enhancement.)
   **Guide with examples: [docs/task-editor.md](docs/task-editor.md).**
-- **Phase 5 — Hardening:** TOTP 2FA, RBAC, built-in TLS, packaging (systemd unit,
-  scoped sudoers, installer).
+- **Phase 5 — Hardening & packaging (in progress):** **TOTP 2FA (done)** —
+  per-user RFC 6238 codes, enforced at login, set up via QR in Settings;
+  **built-in TLS (done)**; **packaging (done)** — systemd unit, allowlisted
+  sudoers, and an installer in [`deploy/`](deploy), documented in
+  [docs/deploy.md](docs/deploy.md). Remaining: **RBAC** (roles/permissions).

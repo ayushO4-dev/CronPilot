@@ -4,6 +4,7 @@ export interface User {
   id: string
   username: string
   mustChangePassword: boolean
+  totpEnabled: boolean
 }
 
 export interface Settings {

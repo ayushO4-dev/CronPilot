@@ -1,0 +1,31 @@
+# CronPilot allowlisted privileges.
+#
+# Install to /etc/sudoers.d/cronpilot with mode 0440 and validate before use:
+#   install -m 0440 deploy/cronpilot.sudoers /etc/sudoers.d/cronpilot
+#   visudo -cf /etc/sudoers.d/cronpilot
+#
+# The daemon runs as the unprivileged `cronpilot` user and escalates ONLY the
+# commands below via `sudo -n` (non-interactive). Everything else — metrics,
+# the process list, journal reads — stays unprivileged. Reading service logs
+# uses `journalctl` directly; add `cronpilot` to the `systemd-journal` group
+# rather than granting it here.
+
+Cmnd_Alias CRONPILOT_SYSTEMCTL = \
+    /usr/bin/systemctl start *,   /bin/systemctl start *,   \
+    /usr/bin/systemctl stop *,    /bin/systemctl stop *,    \
+    /usr/bin/systemctl restart *, /bin/systemctl restart *, \
+    /usr/bin/systemctl enable *,  /bin/systemctl enable *,  \
+    /usr/bin/systemctl disable *, /bin/systemctl disable *
+
+Cmnd_Alias CRONPILOT_KILL = /usr/bin/kill *, /bin/kill *
+
+cronpilot ALL=(root) NOPASSWD: CRONPILOT_SYSTEMCTL, CRONPILOT_KILL
+
+# OPTIONAL — task "Run as": to let task commands run as a specific account, add
+# an explicit rule. This grants arbitrary command execution as that user, so
+# scope it to the exact account you need and omit it otherwise:
+#   cronpilot ALL=(deployuser) NOPASSWD: /usr/bin/sh -c *, /bin/sh -c *
+#
+# TIGHTER (optional): the rules above allow systemctl on any unit. To restrict
+# to specific units, replace the wildcard with explicit commands, e.g.:
+#   cronpilot ALL=(root) NOPASSWD: /usr/bin/systemctl restart nginx.service

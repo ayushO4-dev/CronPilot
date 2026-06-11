@@ -1,0 +1,47 @@
+[Unit]
+Description=CronPilot — Linux server manager
+Documentation=https://github.com/ayushkanoje/cronpilot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cronpilot
+Group=cronpilot
+
+# Persistent state (the SQLite database) lives here. systemd creates
+# /var/lib/cronpilot owned by the service user with mode 0700.
+StateDirectory=cronpilot
+StateDirectoryMode=0700
+Environment=CRONPILOT_DATA_DIR=/var/lib/cronpilot
+
+# Listen on loopback by default — front with a TLS-terminating reverse proxy,
+# or uncomment the TLS lines to serve HTTPS directly from the daemon.
+Environment=CRONPILOT_ADDR=127.0.0.1:8765
+#Environment=CRONPILOT_TLS_CERT=/etc/cronpilot/tls/cert.pem
+#Environment=CRONPILOT_TLS_KEY=/etc/cronpilot/tls/key.pem
+
+# First-run admin bootstrap (optional). If unset, a random password is generated
+# and written to the journal on first start (flagged must-change). See README.
+#Environment=CRONPILOT_ADMIN_USER=admin
+#Environment=CRONPILOT_ADMIN_PASSWORD=
+
+ExecStart=/usr/local/bin/cronpilotd
+Restart=on-failure
+RestartSec=2s
+LimitNOFILE=65536
+
+# NOTE: NoNewPrivileges is intentionally left unset. CronPilot escalates a small
+# allowlist of actions (systemctl, kill) through `sudo -n` — see
+# deploy/cronpilot.sudoers. Setting NoNewPrivileges=true would block sudo and
+# break service/process management.
+#
+# Likewise, heavier sandboxing (ProtectHome, PrivateTmp, ProtectSystem=strict)
+# is omitted on purpose: a server manager spawns login shells and runs arbitrary
+# task commands, which those directives would break. The lines below are safe.
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target

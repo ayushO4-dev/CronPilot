@@ -6,7 +6,7 @@ import type { User } from './types'
 interface AuthContextValue {
   user: User | null
   loading: boolean
-  login: (username: string, password: string) => Promise<User>
+  login: (username: string, password: string, code?: string) => Promise<User>
   logout: () => Promise<void>
   refresh: () => Promise<void>
 }
@@ -32,8 +32,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })()
   }, [refresh])
 
-  const login = useCallback(async (username: string, password: string) => {
-    const u = await api.post<User>('/api/auth/login', { username, password })
+  const login = useCallback(async (username: string, password: string, code?: string) => {
+    const u = await api.post<User>('/api/auth/login', { username, password, code: code ?? '' })
     setUser(u)
     return u
   }, [])

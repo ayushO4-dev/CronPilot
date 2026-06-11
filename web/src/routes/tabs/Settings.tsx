@@ -7,6 +7,7 @@ import { initialTheme, saveTheme } from '../../lib/theme'
 import type { Theme } from '../../lib/theme'
 import { Button, Panel } from '../../components/ui'
 import { ChangePasswordForm } from '../../components/ChangePasswordForm'
+import { TwoFactorPanel } from '../../components/TwoFactorPanel'
 import { duration } from '../../lib/format'
 import styles from './tabs.module.css'
 
@@ -38,6 +39,10 @@ export function Settings() {
 
       <Panel title="Change password">
         <ChangePasswordForm />
+      </Panel>
+
+      <Panel title="Two-factor authentication">
+        <TwoFactorPanel />
       </Panel>
 
       <Panel title="Server">

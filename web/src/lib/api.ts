@@ -4,6 +4,8 @@
 export interface ApiError {
   error: string
   status: number
+  /** Set by the login endpoint when a valid password still needs a 2FA code. */
+  totpRequired?: boolean
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -28,6 +30,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       error: (data && data.error) || res.statusText || 'request failed',
       status: res.status,
     }
+    if (data && data.totpRequired) err.totpRequired = true
     throw err
   }
   return data as T

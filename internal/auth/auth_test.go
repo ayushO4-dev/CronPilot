@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pquerna/otp/totp"
+
 	"github.com/ayushkanoje/cronpilot/internal/config"
 	"github.com/ayushkanoje/cronpilot/internal/store"
 )
@@ -37,7 +39,7 @@ func TestLoginAndAuthenticate(t *testing.T) {
 	m, st := newTestManager(t)
 	createUser(t, st, "alice", "Sup3rSecret!pw")
 
-	sess, user, err := m.Login("alice", "Sup3rSecret!pw", "127.0.0.1")
+	sess, user, err := m.Login("alice", "Sup3rSecret!pw", "", "127.0.0.1")
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
@@ -53,14 +55,14 @@ func TestLoginAndAuthenticate(t *testing.T) {
 		t.Fatalf("authenticate returned wrong user")
 	}
 
-	if _, _, err := m.Login("alice", "nope", "127.0.0.1"); err != ErrInvalidCredentials {
+	if _, _, err := m.Login("alice", "nope", "", "127.0.0.1"); err != ErrInvalidCredentials {
 		t.Fatalf("expected invalid credentials, got %v", err)
 	}
 }
 
 func TestUnknownUserLogin(t *testing.T) {
 	m, _ := newTestManager(t)
-	if _, _, err := m.Login("ghost", "whatever", "127.0.0.1"); err != ErrInvalidCredentials {
+	if _, _, err := m.Login("ghost", "whatever", "", "127.0.0.1"); err != ErrInvalidCredentials {
 		t.Fatalf("expected invalid credentials for unknown user, got %v", err)
 	}
 }
@@ -68,7 +70,7 @@ func TestUnknownUserLogin(t *testing.T) {
 func TestLogoutInvalidatesSession(t *testing.T) {
 	m, st := newTestManager(t)
 	createUser(t, st, "bob", "Sup3rSecret!pw")
-	sess, _, _ := m.Login("bob", "Sup3rSecret!pw", "ip")
+	sess, _, _ := m.Login("bob", "Sup3rSecret!pw", "", "ip")
 
 	if err := m.Logout(sess.Token); err != nil {
 		t.Fatalf("logout: %v", err)
@@ -84,14 +86,14 @@ func TestRateLimit(t *testing.T) {
 	const ip = "10.0.0.1"
 
 	for i := 0; i < 5; i++ {
-		_, _, _ = m.Login("carol", "wrong", ip)
+		_, _, _ = m.Login("carol", "wrong", "", ip)
 	}
 	// Even with the correct password, the bucket is now locked.
-	if _, _, err := m.Login("carol", "Sup3rSecret!pw", ip); err != ErrRateLimited {
+	if _, _, err := m.Login("carol", "Sup3rSecret!pw", "", ip); err != ErrRateLimited {
 		t.Fatalf("expected rate limited, got %v", err)
 	}
 	// A different IP is unaffected.
-	if _, _, err := m.Login("carol", "Sup3rSecret!pw", "10.0.0.2"); err != nil {
+	if _, _, err := m.Login("carol", "Sup3rSecret!pw", "", "10.0.0.2"); err != nil {
 		t.Fatalf("different IP should not be limited, got %v", err)
 	}
 }
@@ -103,7 +105,7 @@ func TestChangePassword(t *testing.T) {
 	if err := m.ChangePassword(u.ID, "OldPassw0rd!", "N3wPassword!x"); err != nil {
 		t.Fatalf("change password: %v", err)
 	}
-	if _, _, err := m.Login("dave", "N3wPassword!x", "ip"); err != nil {
+	if _, _, err := m.Login("dave", "N3wPassword!x", "", "ip"); err != nil {
 		t.Fatalf("login with new password: %v", err)
 	}
 
@@ -113,5 +115,54 @@ func TestChangePassword(t *testing.T) {
 	}
 	if err := m.ChangePassword(u2.ID, "wrong-old", "N3wPassword!x"); err != ErrInvalidCredentials {
 		t.Fatalf("expected invalid credentials for wrong old password, got %v", err)
+	}
+}
+
+func TestLoginTOTP(t *testing.T) {
+	m, st := newTestManager(t)
+	u := createUser(t, st, "frank", "Sup3rSecret!pw")
+
+	// Setting up a secret alone must not start enforcing 2FA.
+	secret, _, err := m.SetupTOTP(u.ID)
+	if err != nil {
+		t.Fatalf("setup totp: %v", err)
+	}
+	if _, _, err := m.Login("frank", "Sup3rSecret!pw", "", "ip-a"); err != nil {
+		t.Fatalf("login before enable should succeed, got %v", err)
+	}
+
+	// Enabling requires a valid code.
+	if err := m.EnableTOTP(u.ID, "000000"); err != ErrInvalidTOTP {
+		t.Fatalf("enable with bad code: expected ErrInvalidTOTP, got %v", err)
+	}
+	code, err := totp.GenerateCode(secret, time.Now())
+	if err != nil {
+		t.Fatalf("generate code: %v", err)
+	}
+	if err := m.EnableTOTP(u.ID, code); err != nil {
+		t.Fatalf("enable totp: %v", err)
+	}
+
+	// With 2FA on: no code prompts, a wrong code is rejected, a valid code works.
+	if _, _, err := m.Login("frank", "Sup3rSecret!pw", "", "ip-b"); err != ErrTOTPRequired {
+		t.Fatalf("expected ErrTOTPRequired without code, got %v", err)
+	}
+	if _, _, err := m.Login("frank", "Sup3rSecret!pw", "000000", "ip-c"); err != ErrInvalidTOTP {
+		t.Fatalf("expected ErrInvalidTOTP for wrong code, got %v", err)
+	}
+	code, _ = totp.GenerateCode(secret, time.Now())
+	if _, _, err := m.Login("frank", "Sup3rSecret!pw", code, "ip-d"); err != nil {
+		t.Fatalf("login with valid code: %v", err)
+	}
+
+	// Disable requires the password; afterwards login needs no code.
+	if err := m.DisableTOTP(u.ID, "wrong"); err != ErrInvalidCredentials {
+		t.Fatalf("disable with wrong password: expected ErrInvalidCredentials, got %v", err)
+	}
+	if err := m.DisableTOTP(u.ID, "Sup3rSecret!pw"); err != nil {
+		t.Fatalf("disable totp: %v", err)
+	}
+	if _, _, err := m.Login("frank", "Sup3rSecret!pw", "", "ip-e"); err != nil {
+		t.Fatalf("login after disable should succeed, got %v", err)
 	}
 }

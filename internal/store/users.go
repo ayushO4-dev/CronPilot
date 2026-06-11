@@ -7,15 +7,20 @@ import (
 )
 
 // User is an application account. Passwords are never stored in plaintext;
-// PasswordHash holds an encoded Argon2id string.
+// PasswordHash holds an encoded Argon2id string. TOTPSecret is set at 2FA
+// setup time but only enforced once TOTPEnabled is true.
 type User struct {
 	ID                 string
 	Username           string
 	PasswordHash       string
 	MustChangePassword bool
+	TOTPSecret         string
+	TOTPEnabled        bool
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 }
+
+const userCols = `id, username, password_hash, must_change_password, totp_secret, totp_enabled, created_at, updated_at`
 
 // CountUsers returns the number of accounts; used to detect first-run.
 func (s *Store) CountUsers() (int, error) {
@@ -42,15 +47,13 @@ func (s *Store) CreateUser(u *User) error {
 // GetUserByUsername returns the account with the given username, or ErrNotFound.
 func (s *Store) GetUserByUsername(username string) (*User, error) {
 	return s.scanUser(s.db.QueryRow(
-		`SELECT id, username, password_hash, must_change_password, created_at, updated_at
-		 FROM users WHERE username=?`, username))
+		`SELECT `+userCols+` FROM users WHERE username=?`, username))
 }
 
 // GetUserByID returns the account with the given id, or ErrNotFound.
 func (s *Store) GetUserByID(id string) (*User, error) {
 	return s.scanUser(s.db.QueryRow(
-		`SELECT id, username, password_hash, must_change_password, created_at, updated_at
-		 FROM users WHERE id=?`, id))
+		`SELECT `+userCols+` FROM users WHERE id=?`, id))
 }
 
 // UpdateUserPassword sets a new password hash and the must-change flag.
@@ -61,19 +64,29 @@ func (s *Store) UpdateUserPassword(id, hash string, mustChange bool) error {
 	return err
 }
 
+// UpdateUserTOTP stores a user's TOTP secret and enabled state.
+func (s *Store) UpdateUserTOTP(id, secret string, enabled bool) error {
+	_, err := s.db.Exec(
+		`UPDATE users SET totp_secret=?, totp_enabled=?, updated_at=? WHERE id=?`,
+		secret, boolToInt(enabled), time.Now().Unix(), id)
+	return err
+}
+
 func (s *Store) scanUser(row *sql.Row) (*User, error) {
 	var (
 		u                User
 		mustChange       int
+		totpEnabled      int
 		created, updated int64
 	)
-	if err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &mustChange, &created, &updated); err != nil {
+	if err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &mustChange, &u.TOTPSecret, &totpEnabled, &created, &updated); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
 	u.MustChangePassword = mustChange != 0
+	u.TOTPEnabled = totpEnabled != 0
 	u.CreatedAt = time.Unix(created, 0)
 	u.UpdatedAt = time.Unix(updated, 0)
 	return &u, nil
