@@ -10,10 +10,26 @@
 #   make web && make build-linux      # -> bin/cronpilotd-linux-amd64
 #   sudo ./deploy/install.sh bin/cronpilotd-linux-amd64
 #
+#!/usr/bin/env bash
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-BIN_SRC="${1:-bin/cronpilotd}"
+
+# Detect architecture
+case "$(uname -m)" in
+  x86_64|amd64)
+    DEFAULT_BIN="bin/cronpilotd-linux-amd64"
+    ;;
+  aarch64|arm64)
+    DEFAULT_BIN="bin/cronpilotd-linux-arm64"
+    ;;
+  *)
+    echo "error: unsupported architecture: $(uname -m)" >&2
+    exit 1
+    ;;
+esac
+
+BIN_SRC="${1:-$DEFAULT_BIN}"
 BIN_DST="/usr/local/bin/cronpilotd"
 SERVICE_USER="cronpilot"
 UNIT_DST="/etc/systemd/system/cronpilot.service"
@@ -26,16 +42,23 @@ fi
 
 if [[ ! -f "$BIN_SRC" ]]; then
   echo "error: binary not found at '$BIN_SRC'." >&2
-  echo "Build it first:  make web && make build-linux" >&2
-  echo "then:            sudo $0 bin/cronpilotd-linux-amd64" >&2
+  echo "Build it first for your architecture." >&2
+  echo
+  echo "Examples:"
+  echo "  make web && make build-linux-amd64"
+  echo "  make web && make build-linux-arm64"
+  echo
+  echo "Then run:"
+  echo "  sudo $0 [path-to-binary]"
   exit 1
 fi
 
 echo "==> creating service user '$SERVICE_USER' (if missing)"
 if ! id -u "$SERVICE_USER" >/dev/null 2>&1; then
-  # A login shell is set so the web terminal's "self" session works; the account
-  # has no password and cannot be logged into directly.
-  useradd --system --home-dir /var/lib/cronpilot --shell /bin/bash "$SERVICE_USER"
+  useradd --system \
+    --home-dir /var/lib/cronpilot \
+    --shell /bin/bash \
+    "$SERVICE_USER"
 fi
 
 echo "==> installing binary -> $BIN_DST"
@@ -52,7 +75,6 @@ fi
 echo "==> installing systemd unit -> $UNIT_DST"
 install -m 0644 "$HERE/cronpilot.service" "$UNIT_DST"
 
-# Allow the daemon to read the system journal for service logs.
 if getent group systemd-journal >/dev/null 2>&1; then
   usermod -aG systemd-journal "$SERVICE_USER" || true
 fi
