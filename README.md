@@ -1,142 +1,127 @@
-# CronPilot
+# 🚀 CronPilot
 
-A self-hosted **Linux server manager** — a single Go binary that runs *on* the
-server it manages and serves a minimal web UI. Secure login, a tabbed dashboard,
-live system-resource monitoring, a web terminal, and (in later phases) systemd
-service control, a process view, and a ladder-logic task-automation engine.
+**CronPilot** is a lightweight, self-hosted Linux server management suite delivered as a single Go binary. It provides a secure, unified dashboard to monitor system resources, manage `systemd` services, interact with a web terminal, and execute complex automation via a unique ladder-logic engine.
 
-<<<<<<< HEAD
-> **Status: Phase 5 (in progress).** Implemented: secure auth with optional
-> **TOTP 2FA**, a unified live **dashboard**, **systemd service management**, a
-> **running-applications** view, a web **terminal**, settings, the
-> **ladder-logic task engine**, and **production packaging** (systemd unit,
-> scoped sudoers, installer — see [docs/deploy.md](docs/deploy.md)). Remaining:
-> RBAC (see [Roadmap](#roadmap)).
+![Version](https://img.shields.io/badge/version-0.1.6-orange)
+![License](https://img.shields.io/badge/License-MIT-blue)
+![Go](https://img.shields.io/badge/Language-Go-00ADD8?logo=go)
+![React](https://img.shields.io/badge/Frontend-React%20%2B%20TypeScript-61DAFB?logo=react)
 
-=======
->>>>>>> b989dc8995d2acf7ae99722828c1aae443a5ce3f
-## Design
+---
 
-- **Single binary.** The Go daemon embeds the built React frontend (`web/dist`)
-  via `embed.FS`, so deployment is one file.
-- **Local agent.** It manages the host it runs on: the terminal is a local PTY
-  shell; the monitor reads local metrics.
-- **Security first** (Cockpit-style): runs as a scoped non-root service user,
-  binds to loopback by default, Argon2id passwords, HttpOnly+SameSite session
-  cookies, login rate-limiting, security headers, and an audit log.
+## ✨ Key Features
 
-## Tech stack
+- 🖥️ **Unified Dashboard:** Live system resource monitoring and a high-level overview of your server's health.
+- ⚙️ **Service Management:** Full `systemd` control (start, stop, restart, enable/disable) and journal log viewing.
+- 💻 **Web Terminal:** A full-featured, low-latency web terminal using Xterm.js and local PTY shells.
+- ⚡ **Process Monitor:** Real-time view of running applications with per-process details and signal handling (TERM/KILL/HUP/INT).
+- 🪜 **Ladder-Logic Engine:** A powerful automation system where tasks are defined as "rungs" of logic gates, allowing for complex conditional execution based on metrics, files, or states.
+- 🔐 **Hardened Security:**
+    - Argon2id password hashing.
+    - Optional TOTP 2FA (RFC 6238).
+    - HttpOnly + SameSite session cookies.
+    - Scoped `sudoers` permissions (minimal privilege principle).
+    - Built-in TLS support.
 
-- **Backend:** Go — `net/http`, `gorilla/websocket`, `creack/pty`, `gopsutil/v4`,
-  pure-Go `modernc.org/sqlite`, `golang.org/x/crypto/argon2`.
-- **Frontend:** React + TypeScript + Vite, `@xterm/xterm`, `uPlot`, CSS variables.
+---
 
-## Requirements
+## 🏗️ Architecture & Design
 
+CronPilot is built with a "Security First" philosophy, inspired by tools like Cockpit:
+
+- **Single Binary:** The Go daemon embeds the React frontend (`web/dist`) via `embed.FS`, making deployment as simple as moving one file.
+- **Local Agent Model:** It manages the host it runs on directly; metrics are gathered locally, and the terminal is a local PTY shell.
+- **Least Privilege:** Runs as a dedicated unprivileged service user. Privileged actions (like `systemctl`) are performed via an allowlisted `sudoers` file rather than running the daemon as root.
+
+### Tech Stack
+- **Backend:** Go (`net/http`, `gorilla/websocket`, `creack/pty`, `gopsutil/v4`, SQLite, Argon2id).
+- **Frontend:** React, TypeScript, Vite, `@xterm/xterm`, `uPlot`.
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
 - **Go 1.23+** and **Node 18+**.
-- A **Linux** host to *run* on (systemd, `/proc`, and PTYs are Linux features).
-  On Windows, develop with **WSL2 (systemd enabled)** or a VM.
+- A **Linux** host (requires systemd, `/proc`, and PTYs).
+- *Note: For Windows development, use WSL2 with systemd enabled.*
 
-## Develop on Windows + WSL2
-
-This repo targets Linux but is commonly edited on Windows. The reliable split:
-build the **frontend with Windows Node**, build/run the **Go daemon in WSL2**
-(`web/dist` is shared through the filesystem at `/mnt/<drive>/...`).
-
-### One-time: install Go in WSL (no sudo)
-
-```bash
-# inside: wsl -d Debian
-cd ~
-curl -fsSLo go.tgz https://go.dev/dl/go1.23.6.linux-amd64.tar.gz
-mkdir -p ~/.local && tar -C ~/.local -xzf go.tgz && rm go.tgz
-echo 'export PATH=$HOME/.local/go/bin:$HOME/go/bin:$PATH' >> ~/.bashrc
-source ~/.bashrc && go version
-```
-
-### Build & run the single binary (recommended verification)
+### Quick Start (Production Verification)
+To verify the build on your target machine:
 
 ```powershell
-# 1) Windows: build the frontend
+# 1. Build the frontend (Windows/Host side)
 cd web; npm install; npm run build; cd ..
-```
-```bash
-# 2) WSL: build and run the daemon
-cd /mnt/f/Codes/CORE/CronPilot
+
+# 2. Build and Run the daemon (Linux/WSL side)
+cd /path/to/CronPilot
 go mod tidy
 make build
-./bin/cronpilotd            # add -dev for http (no TLS) local use
+./bin/cronpilotd # Use -dev for non-TLS local testing
 ```
+*On first run, the daemon will print a generated **admin** password. Access the UI at `http://127.0.0.1:8765`.*
 
-On first run the daemon prints a generated **admin** password (also flagged to be
-changed on first login). Open <http://127.0.0.1:8765> from Windows.
+### Development Loop (Hot Reload)
+For active development using WSL2 and Windows:
 
-### Hot-reload dev loop (optional)
-
+**Backend (WSL):**
 ```bash
-# WSL: backend in dev mode (relaxed cookies, permissive CORS/WS origin)
 make dev
 ```
+**Frontend (Windows):**
 ```powershell
-# Windows: Vite dev server with API/WS proxy to the backend
-cd web; npm run dev   # open http://localhost:5173
+cd web; npm run dev # Opens http://localhost:5173
 ```
 
-## Configuration
+---
 
-| Env var | Flag | Default | Purpose |
-|---|---|---|---|
+## ⚙️ Configuration
+
+| Environment Variable | Flag | Default | Description |
+| :--- | :--- | :--- | :--- |
 | `CRONPILOT_ADDR` | `-addr` | `127.0.0.1:8765` | Listen address |
-| `CRONPILOT_DATA_DIR` | `-data-dir` | `~/.local/state/cronpilot` | DB + state |
-| `CRONPILOT_DEV` | `-dev` | `false` | Relax Secure cookies, CORS/WS origin |
-| `CRONPILOT_SHELL` | `-shell` | user shell | Shell for the web terminal |
-| `CRONPILOT_TLS_CERT` / `_KEY` | `-tls-cert` / `-tls-key` | – | Enable built-in HTTPS |
-| `CRONPILOT_ADMIN_USER` / `_PASSWORD` | – | `admin` / generated | First-run admin bootstrap |
+| `CRONPILOT_DATA_DIR` | `-data-dir` | `~/.local/state/cronpilot` | DB and state storage path |
+| `CRONPILOT_DEV` | `-dev` | `false` | Relax secure cookies & CORS for development |
+| `CRONPILOT_SHELL` | `-shell` | `user shell` | Default shell for the web terminal |
+| `CRONPILOT_TLS_CERT` | `-tls-cert` | — | Path to TLS certificate |
+| `CRONPILOT_TLS_KEY` | `-tls-key` | — | Path to TLS private key |
 
-## Security notes
+---
 
-- Bind to loopback and front with a TLS reverse proxy, **or** set
-  `-tls-cert/-tls-key` for built-in HTTPS. The `Secure` cookie flag is set
-  whenever not in `-dev` mode.
-- Run as a dedicated unprivileged user; grant privileged actions via the
-  allowlisted `sudoers` file in [`deploy/`](deploy/cronpilot.sudoers) (only
-  `systemctl` and `kill`) — never blanket root.
-- Enable **TOTP 2FA** per user in Settings for a second login factor.
-- For a full production setup (systemd unit, sudoers, TLS, reverse proxy), see
-  **[docs/deploy.md](docs/deploy.md)**.
+## 🗺️ Roadmap & Progress
 
-## Project layout
+- **Phase 1: Core Infrastructure (Done)** - Auth system, DB migrations, and base API.
+- **Phase 2: Services (Done)** - `systemctl` integration, journal logs, and service state management.
+- **Phase 3: Applications (Done)** - Process monitoring with CPU deltas and signal handling.
+- **Phase 4: Tasks (Done)** - Ladder-logic engine implementation and UI editor. See [docs/task-editor.md](docs/task-editor.md) for examples.
+- **Phase 5: Hardening & Packaging (In Progress)**
+    - ✅ TOTP 2FA Implementation.
+    - ✅ Built-in TLS Support.
+    - ✅ Production Packaging (Systemd unit, scoped sudoers, installer).
+    - ⏳ **RBAC** (Role-Based Access Control) - *Next Milestone.*
 
+---
+
+## 📂 Project Layout
+
+```text
+cmd/cronpilotd       # Daemon entrypoint
+internal/config      # Configuration management
+internal/store       # SQLite + migrations (users, sessions, settings, audit)
+internal/auth        # Argon2id, sessions, rate limiting
+internal/system      # gopsutil metrics (snapshot + live sampler)
+internal/terminal    # PTY shell sessions
+internal/services    # systemd units (systemctl/journalctl)
+internal/processes   # process list & signals (gopsutil)
+internal/tasks       # ladder-logic engine (model, scheduler, executor)
+internal/server      # router, middleware, handlers, embedded SPA
+web/                 # React + TypeScript frontend (Vite)
 ```
-cmd/cronpilotd     daemon entrypoint
-internal/config    configuration
-internal/store     SQLite + migrations (users, sessions, settings, audit)
-internal/auth      Argon2id, sessions, rate limiting
-internal/system    gopsutil metrics (snapshot + live sampler)
-internal/terminal  PTY shell sessions
-internal/services  systemd units (systemctl/journalctl)
-internal/processes process list & signals (gopsutil)
-internal/tasks     ladder-logic engine (model, scheduler, executor)
-internal/server    router, middleware, handlers, embedded SPA
-web/               React + TypeScript frontend (Vite)
-```
-<<<<<<< HEAD
 
-## Roadmap
+---
 
-- **Phase 2 — Services (done):** systemd list/detail, start/stop/restart/enable/disable, recent journal logs. Reads via `systemctl --output=json`/`journalctl`; writes via `systemctl` (escalated with `sudo -n` when not root).
-- **Phase 3 — Applications (done):** process list with delta CPU%, per-process detail, and signals (TERM/KILL/HUP/INT). Signals via `kill` (escalated with `sudo -n` when not root).
-- **Phase 4 — Tasks (done):** ladder-logic automation. A task is a list of rungs;
-  each rung is ALL/ANY of contacts (service/process/time/metric/file/flag/taskState,
-  with negate) that, when true, run actions (command/service/flag/taskToggle/log).
-  Scheduled via interval or cron (robfig/cron), plus run-now; full run history.
-  UI: left task list + right ladder viewer/editor. (Form-based editor; a React Flow
-  drag-drop canvas is an optional future enhancement.)
-  **Guide with examples: [docs/task-editor.md](docs/task-editor.md).**
-- **Phase 5 — Hardening & packaging (in progress):** **TOTP 2FA (done)** —
-  per-user RFC 6238 codes, enforced at login, set up via QR in Settings;
-  **built-in TLS (done)**; **packaging (done)** — systemd unit, allowlisted
-  sudoers, and an installer in [`deploy/`](deploy), documented in
-  [docs/deploy.md](docs/deploy.md). Remaining: **RBAC** (roles/permissions).
-=======
->>>>>>> b989dc8995d2acf7ae99722828c1aae443a5ce3f
+## 🛡️ Security Notes
+- **Reverse Proxy:** It is recommended to bind to loopback and use a TLS reverse proxy. Alternatively, use the built-in `-tls-cert` flags.
+- **Sudoers:** Never grant blanket root access. Only `systemctl` and `kill` are permitted via [`deploy/cronpilot.sudoers`](deploy/cronpilot.sudoers).
+- **Documentation:** For a full production deployment guide, see [docs/deploy.md](docs/deploy.md).
+""",path:
