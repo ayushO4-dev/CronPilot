@@ -4,6 +4,7 @@ package config
 
 import (
 	"flag"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -61,6 +62,20 @@ func Load() *Config {
 
 // TLSEnabled reports whether built-in HTTPS should be used.
 func (c *Config) TLSEnabled() bool { return c.TLSCert != "" && c.TLSKey != "" }
+
+// LoopbackOnly reports whether Addr binds only the loopback interface. An empty
+// or wildcard host ("", "0.0.0.0", "::") is treated as non-loopback (exposed).
+func (c *Config) LoopbackOnly() bool {
+	host, _, err := net.SplitHostPort(c.Addr)
+	if err != nil {
+		host = c.Addr
+	}
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
 
 func defaultDataDir() string {
 	if d := os.Getenv("XDG_STATE_HOME"); d != "" {

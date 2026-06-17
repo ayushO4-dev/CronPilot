@@ -81,6 +81,19 @@ func main() {
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
+	// Guard against the most common misconfiguration: exposing the daemon on a
+	// non-loopback address over plain HTTP. The session cookie is marked Secure
+	// outside dev mode, so browsers refuse to send it over HTTP and every login
+	// silently fails after the password step.
+	if !cfg.Dev && !cfg.TLSEnabled() && !cfg.LoopbackOnly() {
+		log.Warn("════════ insecure configuration ════════")
+		log.Warn("bound to a non-loopback address without TLS — the Secure session cookie "+
+			"will not be sent over plain HTTP, so logins will fail", "addr", cfg.Addr)
+		log.Warn("fix: set CRONPILOT_TLS_CERT/CRONPILOT_TLS_KEY, front with an HTTPS reverse " +
+			"proxy, or bind 127.0.0.1 and reach it via an SSH tunnel")
+		log.Warn("═════════════════════════════════════════")
+	}
+
 	go func() {
 		scheme := "http"
 		if cfg.TLSEnabled() {

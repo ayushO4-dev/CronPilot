@@ -32,9 +32,11 @@ It will:
 1. create the system user **`cronpilot`** (if missing),
 2. install the binary to `/usr/local/bin/cronpilotd`,
 3. install and **validate** the sudoers allowlist at `/etc/sudoers.d/cronpilot`,
-4. install the unit at `/etc/systemd/system/cronpilot.service`,
-5. add `cronpilot` to the `systemd-journal` group (for reading service logs),
-6. `daemon-reload`, then `enable --now` the service.
+4. generate a **self-signed TLS certificate** at `/etc/cronpilot/tls/` (HTTPS is
+   on by default; an existing cert there is kept, not overwritten),
+5. install the unit at `/etc/systemd/system/cronpilot.service`,
+6. add `cronpilot` to the `systemd-journal` group (for reading service logs),
+7. `daemon-reload`, then `enable --now` the service.
 
 ### First login
 
@@ -45,8 +47,9 @@ writes it to the journal:
 journalctl -u cronpilot -b | grep -A2 'initial admin'
 ```
 
-Open `http://127.0.0.1:8765` (or your proxied URL), sign in, and change the
-password when prompted. Then enable **two-factor authentication** in
+Open `https://<host>:8765` and accept the self-signed certificate warning once
+(the cert covers `localhost`, the hostname, and the host's LAN IPs). Sign in,
+change the password when prompted, then enable **two-factor authentication** in
 **Settings → Two-factor authentication** (see §5).
 
 To set the initial password yourself instead, uncomment `CRONPILOT_ADMIN_USER`
@@ -54,10 +57,10 @@ To set the initial password yourself instead, uncomment `CRONPILOT_ADMIN_USER`
 
 ## 3. TLS
 
-CronPilot binds to **loopback** by default. Choose one of:
-
-**a) Built-in HTTPS.** Provide a cert and key and listen on all interfaces.
-Uncomment in the unit (or use a drop-in `systemctl edit cronpilot`):
+The installer turns on **built-in HTTPS by default** with a generated
+self-signed cert — so a fresh install is reachable over `https://` immediately,
+and the `Secure` session cookie works (browsers drop it over plain HTTP, which
+is the usual cause of "login does nothing"). The unit ships with:
 
 ```ini
 Environment=CRONPILOT_ADDR=0.0.0.0:8765
@@ -65,10 +68,11 @@ Environment=CRONPILOT_TLS_CERT=/etc/cronpilot/tls/cert.pem
 Environment=CRONPILOT_TLS_KEY=/etc/cronpilot/tls/key.pem
 ```
 
-The `Secure` cookie flag is set automatically whenever `-dev` is off.
+**Use your own / a CA-signed cert:** drop the PEM files at those two paths
+(`chown cronpilot:cronpilot`, key mode `0600`) and `systemctl restart cronpilot`.
 
-**b) Reverse proxy** (recommended — handles certs/renewal). Keep CronPilot on
-loopback and terminate TLS in front of it.
+**Prefer a reverse proxy?** (handles certs/renewal). Comment the two `TLS` lines
+out, set `CRONPILOT_ADDR=127.0.0.1:8765`, and terminate TLS in front of it.
 
 Caddy:
 

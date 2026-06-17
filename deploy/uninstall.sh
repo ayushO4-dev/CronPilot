@@ -44,18 +44,17 @@ rm -f "$BIN_DST"
 if [[ $PURGE -eq 1 ]]; then
   echo "==> [purge] removing state directory $STATE_DIR"
   rm -rf "$STATE_DIR"
+  echo "==> [purge] removing TLS/config directory /etc/cronpilot"
+  rm -rf /etc/cronpilot
   if id -u "$SERVICE_USER" >/dev/null 2>&1; then
     echo "==> [purge] deleting service user '$SERVICE_USER'"
     userdel "$SERVICE_USER" 2>/dev/null || true
   fi
 else
   echo
-  echo "Kept the database at $STATE_DIR and the '$SERVICE_USER' user."
+  echo "Kept the database at $STATE_DIR, certs under /etc/cronpilot, and the '$SERVICE_USER' user."
   echo "Re-run with --purge to remove them too."
 fi
-
-# Note: if you configured built-in TLS, certs you placed under /etc/cronpilot are
-# left untouched — remove them manually if no longer needed.
 
 echo
 echo "CronPilot uninstalled."
