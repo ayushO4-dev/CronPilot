@@ -5,6 +5,7 @@ server it manages and serves a minimal web UI. Secure login, a tabbed dashboard,
 live system-resource monitoring, a web terminal, and (in later phases) systemd
 service control, a process view, and a ladder-logic task-automation engine.
 
+<<<<<<< HEAD
 > **Status: Phase 5 (in progress).** Implemented: secure auth with optional
 > **TOTP 2FA**, a unified live **dashboard**, **systemd service management**, a
 > **running-applications** view, a web **terminal**, settings, the
@@ -12,6 +13,8 @@ service control, a process view, and a ladder-logic task-automation engine.
 > scoped sudoers, installer — see [docs/deploy.md](docs/deploy.md)). Remaining:
 > RBAC (see [Roadmap](#roadmap)).
 
+=======
+>>>>>>> b989dc8995d2acf7ae99722828c1aae443a5ce3f
 ## Design
 
 - **Single binary.** The Go daemon embeds the built React frontend (`web/dist`)
@@ -26,8 +29,7 @@ service control, a process view, and a ladder-logic task-automation engine.
 
 - **Backend:** Go — `net/http`, `gorilla/websocket`, `creack/pty`, `gopsutil/v4`,
   pure-Go `modernc.org/sqlite`, `golang.org/x/crypto/argon2`.
-- **Frontend:** React + TypeScript + Vite, `@xterm/xterm`, `uPlot`, CSS variables
-  (minimal monospace theme, no rounded corners).
+- **Frontend:** React + TypeScript + Vite, `@xterm/xterm`, `uPlot`, CSS variables.
 
 ## Requirements
 
@@ -118,6 +120,7 @@ internal/tasks     ladder-logic engine (model, scheduler, executor)
 internal/server    router, middleware, handlers, embedded SPA
 web/               React + TypeScript frontend (Vite)
 ```
+<<<<<<< HEAD
 
 ## Roadmap
 
@@ -135,3 +138,5 @@ web/               React + TypeScript frontend (Vite)
   **built-in TLS (done)**; **packaging (done)** — systemd unit, allowlisted
   sudoers, and an installer in [`deploy/`](deploy), documented in
   [docs/deploy.md](docs/deploy.md). Remaining: **RBAC** (roles/permissions).
+=======
+>>>>>>> b989dc8995d2acf7ae99722828c1aae443a5ce3f
