@@ -17,7 +17,7 @@ Environment=CRONPILOT_DATA_DIR=/var/lib/cronpilot
 
 # Listen on loopback by default — front with a TLS-terminating reverse proxy,
 # or uncomment the TLS lines to serve HTTPS directly from the daemon.
-Environment=CRONPILOT_ADDR=127.0.0.1:8765
+Environment=CRONPILOT_ADDR=0.0.0.0:8765
 #Environment=CRONPILOT_TLS_CERT=/etc/cronpilot/tls/cert.pem
 #Environment=CRONPILOT_TLS_KEY=/etc/cronpilot/tls/key.pem
 

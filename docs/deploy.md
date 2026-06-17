@@ -148,14 +148,16 @@ changed in a release, re-copy them (`sudo ./deploy/install.sh ...` is idempotent
 
 ## 7. Uninstall
 
+Use the uninstaller (mirrors `install.sh`). By default it removes the service,
+binary, and sudoers file but **keeps your data and the service user**:
+
 ```bash
-sudo systemctl disable --now cronpilot
-sudo rm /etc/systemd/system/cronpilot.service /etc/sudoers.d/cronpilot /usr/local/bin/cronpilotd
-sudo systemctl daemon-reload
-# Optional — delete state and the service user:
-sudo rm -rf /var/lib/cronpilot
-sudo userdel cronpilot
+sudo ./deploy/uninstall.sh           # remove CronPilot, keep /var/lib/cronpilot + user
+sudo ./deploy/uninstall.sh --purge   # also delete the database and the cronpilot user
 ```
+
+If you configured built-in TLS, certs you placed under `/etc/cronpilot` are left
+untouched — remove them manually if no longer needed.
 
 ## Troubleshooting
 
