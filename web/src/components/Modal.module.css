@@ -9,6 +9,13 @@
   z-index: 100;
 }
 
+.group {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-4);
+  max-height: 88vh;
+}
+
 .modal {
   width: 720px;
   max-width: 95vw;
@@ -17,6 +24,28 @@
   flex-direction: column;
   background: var(--bg-elev);
   border: 1px solid var(--border-strong);
+  transition: width 0.18s ease;
+}
+
+/* Floating panel beside the modal (e.g. a unit-file editor). */
+.rightPanel {
+  width: 620px;
+  max-width: 48vw;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-strong);
+  animation: panelIn 0.18s ease;
+}
+@keyframes panelIn {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .head {

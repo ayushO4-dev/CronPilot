@@ -2,7 +2,7 @@
 
 **CronPilot** is a lightweight, self-hosted Linux server management suite delivered as a single Go binary. It provides a secure, unified dashboard to monitor system resources, manage `systemd` services, interact with a web terminal, and execute complex automation via a unique ladder-logic engine.
 
-![Version](https://img.shields.io/badge/version-0.2.1-orange)
+![Version](https://img.shields.io/badge/version-0.2.2-orange)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 ![Go](https://img.shields.io/badge/Language-Go-00ADD8?logo=go)
 ![React](https://img.shields.io/badge/Frontend-React%20%2B%20TypeScript-61DAFB?logo=react)

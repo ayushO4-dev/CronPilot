@@ -133,6 +133,12 @@ export interface ServiceDetail extends ServiceUnit {
   since: string
 }
 
+export interface ServiceFile {
+  path: string
+  content: string
+  writable: boolean
+}
+
 export interface ProcessInfo {
   pid: number
   ppid: number

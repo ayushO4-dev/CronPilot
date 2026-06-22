@@ -52,6 +52,43 @@ func (s *Server) handleServiceLogs(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"lines": logs})
 }
 
+func (s *Server) handleServiceFileGet(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if !services.ValidUnitName(name) {
+		writeError(w, http.StatusBadRequest, "invalid unit name")
+		return
+	}
+	path, content, writable, err := services.ReadUnitFile(r.Context(), name)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"path": path, "content": content, "writable": writable})
+}
+
+func (s *Server) handleServiceFilePut(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if !services.ValidUnitName(name) {
+		writeError(w, http.StatusBadRequest, "invalid unit name")
+		return
+	}
+	var req struct {
+		Content string `json:"content"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	user, _, _ := auth.UserFrom(r.Context())
+	path, err := services.WriteUnitFile(r.Context(), name, req.Content)
+	s.audit(r, user.ID, user.Username, "service_edit_unit", name)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "path": path})
+}
+
 func (s *Server) handleServiceAction(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	action := r.PathValue("action")

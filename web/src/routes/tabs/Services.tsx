@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, isApiError } from '../../lib/api'
-import type { ServiceDetail, ServiceUnit } from '../../lib/types'
+import type { ServiceDetail, ServiceFile, ServiceUnit } from '../../lib/types'
 import { Button, Input, Loading, StatusDot } from '../../components/ui'
 import type { Status } from '../../components/ui'
 import { Modal } from '../../components/Modal'
@@ -139,6 +139,7 @@ export function Services() {
 function ServiceModal({ name, onClose }: { name: string; onClose: () => void }) {
   const qc = useQueryClient()
   const [err, setErr] = useState('')
+  const [editing, setEditing] = useState(false)
 
   const { data: detail } = useQuery({
     queryKey: ['service', name],
@@ -189,7 +190,13 @@ function ServiceModal({ name, onClose }: { name: string; onClose: () => void }) 
   )
 
   return (
-    <Modal title={name} onClose={onClose} actions={footer}>
+    <Modal
+      title={name}
+      onClose={onClose}
+      actions={footer}
+      width={editing ? 520 : undefined}
+      rightPanel={editing ? <UnitFileEditor name={name} onDone={() => setEditing(false)} /> : undefined}
+    >
       {err && (
         <div className={styles.error}>
           <span>{err}</span>
@@ -235,7 +242,16 @@ function ServiceModal({ name, onClose }: { name: string; onClose: () => void }) 
               </tr>
               <tr>
                 <th>Unit file</th>
-                <td className={styles.path}>{detail.fragmentPath || '—'}</td>
+                <td>
+                  <div className={styles.pathRow}>
+                    <span className={styles.path}>{detail.fragmentPath || '—'}</span>
+                    {detail.fragmentPath && !editing && (
+                      <button className={styles.editBtn} onClick={() => setEditing(true)}>
+                        edit
+                      </button>
+                    )}
+                  </div>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -247,5 +263,80 @@ function ServiceModal({ name, onClose }: { name: string; onClose: () => void }) 
       <div className={styles.logsHead}>Recent logs</div>
       <pre className={styles.logs}>{logs?.lines && logs.lines.length > 0 ? logs.lines.join('\n') : 'no log entries'}</pre>
     </Modal>
+  )
+}
+
+// UnitFileEditor is the floating editor shown beside the service detail. It loads
+// the unit's on-disk file, edits it in a textarea, and saves (which reloads
+// systemd). Read-only when the daemon can't write the file.
+function UnitFileEditor({ name, onDone }: { name: string; onDone: () => void }) {
+  const qc = useQueryClient()
+  const [content, setContent] = useState<string | null>(null)
+  const [err, setErr] = useState('')
+
+  const { data } = useQuery({
+    queryKey: ['service-file', name],
+    queryFn: () => api.get<ServiceFile>(`/api/services/${encodeURIComponent(name)}/file`),
+  })
+  useEffect(() => {
+    if (data && content === null) setContent(data.content)
+  }, [data, content])
+
+  const save = useMutation({
+    mutationFn: (c: string) => api.put(`/api/services/${encodeURIComponent(name)}/file`, { content: c }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['service', name] })
+      qc.invalidateQueries({ queryKey: ['service-file', name] })
+      onDone()
+    },
+    onError: (e) => setErr(isApiError(e) ? e.error : 'save failed'),
+  })
+
+  const readOnly = data ? !data.writable : true
+
+  return (
+    <>
+      <header className={styles.editorHead}>
+        <span className={styles.editorTitle}>{data?.path ?? 'unit file'}</span>
+        <button className={styles.dismiss} onClick={onDone} aria-label="close editor">
+          ✕
+        </button>
+      </header>
+      {data && !data.writable && (
+        <div className={styles.readonlyNote}>
+          read-only — the daemon can’t write this file (run as root to edit)
+        </div>
+      )}
+      {err && (
+        <div className={styles.error}>
+          <span>{err}</span>
+          <button className={styles.dismiss} onClick={() => setErr('')} aria-label="dismiss">
+            ✕
+          </button>
+        </div>
+      )}
+      <textarea
+        className={styles.editorArea}
+        value={content ?? ''}
+        spellCheck={false}
+        readOnly={readOnly}
+        placeholder={data ? '' : 'loading…'}
+        onChange={(e) => setContent(e.target.value)}
+      />
+      <footer className={styles.editorFoot}>
+        <span style={{ flex: 1 }} />
+        <Button small onClick={onDone}>
+          Cancel
+        </Button>
+        <Button
+          small
+          variant="primary"
+          disabled={save.isPending || content === null || readOnly}
+          onClick={() => content !== null && save.mutate(content)}
+        >
+          {save.isPending ? 'saving…' : 'Save'}
+        </Button>
+      </footer>
+    </>
   )
 }

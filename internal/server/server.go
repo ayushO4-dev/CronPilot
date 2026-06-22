@@ -25,7 +25,7 @@ import (
 )
 
 // Version is the daemon version, surfaced in settings/health.
-const Version = "0.2.1"
+const Version = "0.2.2"
 
 // termTicket is a short-lived, one-time grant to open a terminal as a given
 // account (issued by handleTerminalSession after password verification).
@@ -95,6 +95,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/services", s.requireAuth(s.handleServicesList))
 	mux.HandleFunc("GET /api/services/{name}", s.requireAuth(s.handleServiceGet))
 	mux.HandleFunc("GET /api/services/{name}/logs", s.requireAuth(s.handleServiceLogs))
+	mux.HandleFunc("GET /api/services/{name}/file", s.requireAuth(s.handleServiceFileGet))
+	mux.HandleFunc("PUT /api/services/{name}/file", s.requireAuth(s.handleServiceFilePut))
 	mux.HandleFunc("POST /api/services/{name}/{action}", s.requireAuth(s.handleServiceAction))
 
 	// Processes (running applications)

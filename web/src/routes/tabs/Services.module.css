@@ -95,6 +95,74 @@
   font-size: var(--fs-xs);
   word-break: break-all;
 }
+.pathRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.editBtn {
+  flex: none;
+  padding: 2px 10px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-inset);
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+.editBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* unit-file editor (floating panel beside the detail) */
+.editorHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+.editorTitle {
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  word-break: break-all;
+}
+.readonlyNote {
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  color: var(--warn);
+  font-size: var(--fs-xs);
+  flex: none;
+}
+.editorArea {
+  flex: 1;
+  min-height: 260px;
+  resize: none;
+  border: none;
+  background: var(--bg-inset);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  padding: var(--space-3) var(--space-4);
+  white-space: pre;
+  overflow: auto;
+}
+.editorArea:focus {
+  outline: none;
+}
+.editorFoot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
+  flex: none;
+}
 .logsHead {
   margin-top: var(--space-4);
   margin-bottom: var(--space-2);

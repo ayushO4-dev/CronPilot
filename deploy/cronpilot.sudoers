@@ -15,7 +15,8 @@ Cmnd_Alias CRONPILOT_SYSTEMCTL = \
     /usr/bin/systemctl stop *,    /bin/systemctl stop *,    \
     /usr/bin/systemctl restart *, /bin/systemctl restart *, \
     /usr/bin/systemctl enable *,  /bin/systemctl enable *,  \
-    /usr/bin/systemctl disable *, /bin/systemctl disable *
+    /usr/bin/systemctl disable *, /bin/systemctl disable *, \
+    /usr/bin/systemctl daemon-reload, /bin/systemctl daemon-reload
 
 Cmnd_Alias CRONPILOT_KILL = /usr/bin/kill *, /bin/kill *
 

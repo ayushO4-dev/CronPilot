@@ -10,12 +10,16 @@ export function Modal({
   children,
   actions,
   width,
+  rightPanel,
 }: {
   title: ReactNode
   onClose: () => void
   children: ReactNode
   actions?: ReactNode
   width?: number
+  // Optional floating panel rendered beside the modal (e.g. a file editor). The
+  // modal + panel are centered as a group, so showing it shifts the modal left.
+  rightPanel?: ReactNode
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -27,15 +31,22 @@ export function Modal({
 
   return (
     <div className={styles.overlay} onMouseDown={onClose}>
-      <div className={styles.modal} style={width ? { width } : undefined} onMouseDown={(e) => e.stopPropagation()}>
-        <header className={styles.head}>
-          <h2 className={styles.title}>{title}</h2>
-          <button className={styles.close} onClick={onClose} aria-label="close">
-            ✕
-          </button>
-        </header>
-        <div className={styles.body}>{children}</div>
-        {actions && <footer className={styles.foot}>{actions}</footer>}
+      <div className={styles.group}>
+        <div className={styles.modal} style={width ? { width } : undefined} onMouseDown={(e) => e.stopPropagation()}>
+          <header className={styles.head}>
+            <h2 className={styles.title}>{title}</h2>
+            <button className={styles.close} onClick={onClose} aria-label="close">
+              ✕
+            </button>
+          </header>
+          <div className={styles.body}>{children}</div>
+          {actions && <footer className={styles.foot}>{actions}</footer>}
+        </div>
+        {rightPanel && (
+          <div className={styles.rightPanel} onMouseDown={(e) => e.stopPropagation()}>
+            {rightPanel}
+          </div>
+        )}
       </div>
     </div>
   )

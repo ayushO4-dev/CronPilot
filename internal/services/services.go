@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -160,6 +161,93 @@ func Action(ctx context.Context, name, action string) error {
 		return ErrInvalidAction
 	}
 	return runPrivileged(ctx, "systemctl", action, name)
+}
+
+// systemdUnitDirs are the directories a unit fragment file may legitimately
+// live in; edits are confined to these.
+var systemdUnitDirs = []string{"/etc/systemd/", "/run/systemd/", "/lib/systemd/", "/usr/lib/systemd/"}
+
+func validUnitPath(p string) bool {
+	if p == "" || !filepath.IsAbs(p) {
+		return false
+	}
+	p = filepath.Clean(p)
+	for _, d := range systemdUnitDirs {
+		if strings.HasPrefix(p, d) {
+			return true
+		}
+	}
+	return false
+}
+
+// fragmentPath returns the on-disk unit file backing a unit (per systemd).
+func fragmentPath(ctx context.Context, name string) (string, error) {
+	if !ValidUnitName(name) {
+		return "", ErrInvalidName
+	}
+	out, err := output(ctx, "systemctl", "show", name, "-p", "FragmentPath", "--value")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func fileWritable(path string) bool {
+	if os.Geteuid() == 0 {
+		return true
+	}
+	f, err := os.OpenFile(path, os.O_WRONLY, 0) // no O_TRUNC: does not modify
+	if err != nil {
+		return false
+	}
+	_ = f.Close()
+	return true
+}
+
+// ReadUnitFile returns the unit's on-disk file path, its contents, and whether
+// the daemon can write to it.
+func ReadUnitFile(ctx context.Context, name string) (path, content string, writable bool, err error) {
+	path, err = fragmentPath(ctx, name)
+	if err != nil {
+		return "", "", false, err
+	}
+	if !validUnitPath(path) {
+		return path, "", false, fmt.Errorf("no editable unit file for %s", name)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return path, "", false, err
+	}
+	return path, string(b), fileWritable(path), nil
+}
+
+// WriteUnitFile overwrites the unit's on-disk file and reloads systemd. Writing
+// requires the daemon to have write access to the file (run as root, or grant
+// it). Returns the path written.
+func WriteUnitFile(ctx context.Context, name, content string) (string, error) {
+	path, err := fragmentPath(ctx, name)
+	if err != nil {
+		return "", err
+	}
+	if !validUnitPath(path) {
+		return path, fmt.Errorf("no editable unit file for %s", name)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		if os.IsPermission(err) {
+			return path, fmt.Errorf("cannot write %s: the daemon needs write access (run as root, or grant it)", path)
+		}
+		return path, err
+	}
+	if err := Reload(ctx); err != nil {
+		return path, fmt.Errorf("saved %s, but daemon-reload failed: %w", path, err)
+	}
+	return path, nil
+}
+
+// Reload runs `systemctl daemon-reload` (privileged) so edited unit files take
+// effect.
+func Reload(ctx context.Context) error {
+	return runPrivileged(ctx, "systemctl", "daemon-reload")
 }
 
 // Logs returns the most recent journal lines for a unit.

@@ -13,7 +13,7 @@ import { duration } from '../../lib/format'
 import styles from './tabs.module.css'
 
 export function Settings() {
-  const { logout } = useAuth()
+  const { user, logout } = useAuth()
   const [theme, setTheme] = useState<Theme>(initialTheme())
   const { data } = useQuery({ queryKey: ['settings'], queryFn: () => api.get<SettingsT>('/api/settings') })
 
@@ -24,60 +24,62 @@ export function Settings() {
 
   return (
     <div className={styles.page}>
-      <Panel title="Appearance">
-        <div className={styles.row}>
-          <span>Theme</span>
-          <div className={styles.themeBtns}>
-            <Button small variant={theme === 'dark' ? 'primary' : 'default'} onClick={() => changeTheme('dark')}>
-              Dark
-            </Button>
-            <Button small variant={theme === 'light' ? 'primary' : 'default'} onClick={() => changeTheme('light')}>
-              Light
-            </Button>
-          </div>
+      <header className={styles.settingsHead}>
+        <h2 className={styles.settingsTitle}>Settings</h2>
+        <div className={styles.settingsHeadRight}>
+          {user && <span className={styles.muted}>signed in as {user.username}</span>}
+          <Button small variant="danger" onClick={() => void logout()}>
+            Sign out
+          </Button>
         </div>
-      </Panel>
+      </header>
 
-      <Panel title="Change password">
-        <ChangePasswordForm />
-      </Panel>
+      <div className={styles.settingsGrid}>
+        {/* Account & security */}
+        <div className={styles.settingsCol}>
+          <Panel title="Change password">
+            <ChangePasswordForm />
+          </Panel>
 
-      <Panel title="Two-factor authentication">
-        <TwoFactorPanel />
-      </Panel>
+          <Panel title="Two-factor authentication">
+            <TwoFactorPanel />
+          </Panel>
+        </div>
 
-      <Panel title="Software update">
-        <UpdatePanel />
-      </Panel>
+        {/* System */}
+        <div className={styles.settingsCol}>
+          <Panel title="Appearance">
+            <div className={styles.row}>
+              <span>Theme</span>
+              <div className={styles.themeBtns}>
+                <Button small variant={theme === 'dark' ? 'primary' : 'default'} onClick={() => changeTheme('dark')}>
+                  Dark
+                </Button>
+                <Button small variant={theme === 'light' ? 'primary' : 'default'} onClick={() => changeTheme('light')}>
+                  Light
+                </Button>
+              </div>
+            </div>
+          </Panel>
 
-      <Panel title="Server">
-        <table>
-          <tbody>
-            <tr>
-              <th>Version</th>
-              <td>{data?.version ?? '—'}</td>
-            </tr>
-            <tr>
-              <th>Mode</th>
-              <td>{data ? (data.dev ? 'development' : 'production') : '—'}</td>
-            </tr>
-            <tr>
-              <th>Session idle timeout</th>
-              <td>{data ? duration(data.sessionIdleSeconds) : '—'}</td>
-            </tr>
-            <tr>
-              <th>Session max lifetime</th>
-              <td>{data ? duration(data.sessionMaxSeconds) : '—'}</td>
-            </tr>
-          </tbody>
-        </table>
-      </Panel>
+          <Panel title="Software update">
+            <UpdatePanel />
+          </Panel>
 
-      <Panel title="Session">
-        <Button variant="danger" onClick={() => void logout()}>
-          Logout
-        </Button>
-      </Panel>
+          <Panel title="Server">
+            <dl className={styles.kv}>
+              <dt>Version</dt>
+              <dd>{data?.version ?? '—'}</dd>
+              <dt>Mode</dt>
+              <dd>{data ? (data.dev ? 'development' : 'production') : '—'}</dd>
+              <dt>Session idle timeout</dt>
+              <dd>{data ? duration(data.sessionIdleSeconds) : '—'}</dd>
+              <dt>Session max lifetime</dt>
+              <dd>{data ? duration(data.sessionMaxSeconds) : '—'}</dd>
+            </dl>
+          </Panel>
+        </div>
+      </div>
     </div>
   )
 }
