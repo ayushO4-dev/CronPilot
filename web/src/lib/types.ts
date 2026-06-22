@@ -15,6 +15,23 @@ export interface Settings {
   version: string
 }
 
+export interface UpdateCheck {
+  current: string
+  latest: string
+  available: boolean
+  notes?: string
+  url?: string
+  asset?: string
+}
+
+export interface UpdateStatus {
+  state: 'idle' | 'downloading' | 'applying' | 'restarting' | 'error'
+  downloaded: number
+  total: number
+  latest?: string
+  error?: string
+}
+
 export interface HostInfo {
   hostname: string
   os: string

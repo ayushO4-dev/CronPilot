@@ -24,6 +24,9 @@ case "$(uname -m)" in
   aarch64|arm64)
     DEFAULT_BIN="bin/cronpilotd-linux-arm64"
     ;;
+  armv7l|armv6l|arm)
+    DEFAULT_BIN="bin/cronpilotd-linux-arm"
+    ;;
   *)
     echo "error: unsupported architecture: $(uname -m)" >&2
     exit 1
@@ -31,7 +34,9 @@ case "$(uname -m)" in
 esac
 
 BIN_SRC="${1:-$DEFAULT_BIN}"
-BIN_DST="/usr/local/bin/cronpilotd"
+BIN_DIR="/opt/cronpilot/bin"
+BIN_DST="$BIN_DIR/cronpilotd"
+BIN_LINK="/usr/local/bin/cronpilotd"
 SERVICE_USER="cronpilot"
 UNIT_DST="/etc/systemd/system/cronpilot.service"
 SUDOERS_DST="/etc/sudoers.d/cronpilot"
@@ -66,7 +71,12 @@ if ! id -u "$SERVICE_USER" >/dev/null 2>&1; then
 fi
 
 echo "==> installing binary -> $BIN_DST"
+install -d -m 0755 "$BIN_DIR"
 install -m 0755 "$BIN_SRC" "$BIN_DST"
+# The service user owns its binary + directory so the in-app updater can swap
+# it in place; expose it on PATH via a symlink.
+chown -R "$SERVICE_USER:$SERVICE_USER" "$BIN_DIR"
+ln -sfn "$BIN_DST" "$BIN_LINK"
 
 echo "==> installing sudoers -> $SUDOERS_DST"
 install -m 0440 "$HERE/cronpilot.sudoers" "$SUDOERS_DST"
@@ -117,8 +127,4 @@ echo "Retrieve the generated admin password:"
 echo "  journalctl -u cronpilot -b | grep -A2 'initial admin'"
 echo "Then open https://<this-host>:8765 and accept the certificate warning once."
 echo "Replace $TLS_CERT / $TLS_KEY with a CA-signed cert any time."
-
-echo
-echo "CronPilot is running. Retrieve the generated admin password with:"
-echo "  journalctl -u cronpilot -b | grep -A2 'initial admin'"
-echo "Then open http://127.0.0.1:8765 (or your reverse-proxied URL) and change it."
+echo "Update later from Settings → Software update, or: sudo ./deploy/update.sh"

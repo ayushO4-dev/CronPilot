@@ -7,7 +7,8 @@
 # Mirrors deploy/install.sh. Safe to re-run; missing components are skipped.
 set -uo pipefail
 
-BIN_DST="/usr/local/bin/cronpilotd"
+BIN_DST="/opt/cronpilot/bin/cronpilotd"
+BIN_LINK="/usr/local/bin/cronpilotd"
 SERVICE_USER="cronpilot"
 UNIT_DST="/etc/systemd/system/cronpilot.service"
 SUDOERS_DST="/etc/sudoers.d/cronpilot"
@@ -39,13 +40,13 @@ echo "==> removing sudoers allowlist"
 rm -f "$SUDOERS_DST"
 
 echo "==> removing binary"
-rm -f "$BIN_DST"
+rm -f "$BIN_DST" "$BIN_LINK"
 
 if [[ $PURGE -eq 1 ]]; then
   echo "==> [purge] removing state directory $STATE_DIR"
   rm -rf "$STATE_DIR"
-  echo "==> [purge] removing TLS/config directory /etc/cronpilot"
-  rm -rf /etc/cronpilot
+  echo "==> [purge] removing /opt/cronpilot and TLS/config /etc/cronpilot"
+  rm -rf /opt/cronpilot /etc/cronpilot
   if id -u "$SERVICE_USER" >/dev/null 2>&1; then
     echo "==> [purge] deleting service user '$SERVICE_USER'"
     userdel "$SERVICE_USER" 2>/dev/null || true

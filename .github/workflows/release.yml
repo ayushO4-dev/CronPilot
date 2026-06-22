@@ -1,0 +1,65 @@
+name: release
+
+# Builds Linux binaries for amd64, arm64 and armv7 and attaches them (plus a
+# SHA256SUMS file the in-app updater verifies against) to the GitHub Release.
+on:
+  push:
+    tags: ["v*", "V*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish (e.g. v0.2.1)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build frontend (embedded into the binary)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: |
+          cd web
+          npm ci
+          npm run build
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Cross-compile (CGO-free, pure-Go SQLite)
+        run: |
+          mkdir -p dist
+          for arch in amd64 arm64 arm; do
+            echo "==> linux/$arch"
+            CGO_ENABLED=0 GOOS=linux GOARCH=$arch GOARM=7 \
+              go build -trimpath -ldflags "-s -w" \
+              -o "dist/cronpilotd-linux-$arch" ./cmd/cronpilotd
+          done
+
+      - name: Checksums
+        run: |
+          cd dist
+          sha256sum cronpilotd-linux-* > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Resolve tag
+        id: tag
+        run: echo "tag=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          fail_on_unmatched_files: true
+          files: |
+            dist/cronpilotd-linux-amd64
+            dist/cronpilotd-linux-arm64
+            dist/cronpilotd-linux-arm
+            dist/SHA256SUMS

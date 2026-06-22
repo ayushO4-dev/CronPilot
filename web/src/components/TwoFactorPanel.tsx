@@ -10,7 +10,7 @@ interface SetupData {
   qr: string
 }
 
-const note = { color: 'var(--fg-muted)', fontSize: 'var(--fs-sm)' } as const
+const note = { color: 'var(--muted)', fontSize: 'var(--fs-sm)' } as const
 const errStyle = { color: 'var(--err)', fontSize: 'var(--fs-sm)' } as const
 const okStyle = { color: 'var(--ok)', fontSize: 'var(--fs-sm)' } as const
 const col = { display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', maxWidth: 380 } as const

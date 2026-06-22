@@ -139,16 +139,38 @@ database; back it up accordingly.
 
 ## 6. Upgrades
 
-Rebuild, replace the binary, restart:
+CronPilot updates itself from its GitHub Releases. The binary lives in a
+service-writable directory (`/opt/cronpilot/bin/cronpilotd`, symlinked from
+`/usr/local/bin/cronpilotd`), and the unit uses `Restart=always`, so an update
+can replace the binary in place and relaunch — no manual file juggling.
+
+**a) From the dashboard (recommended).** **Settings → Software update → Check for
+updates → Install.** The server downloads the build for its architecture,
+verifies its SHA-256, logs you out, and restarts on the new version. The page
+reloads to the login screen when it's back.
+
+**b) From the CLI.** Same thing, as root:
+
+```bash
+sudo ./deploy/update.sh
+```
+
+**c) From source.** Rebuild and replace the binary, then restart:
 
 ```bash
 make web && make build-linux
-sudo install -m 0755 bin/cronpilotd-linux-amd64 /usr/local/bin/cronpilotd
+sudo install -m 0755 bin/cronpilotd-linux-amd64 /opt/cronpilot/bin/cronpilotd
 sudo systemctl restart cronpilot
 ```
 
 Database migrations run automatically at startup. If the sudoers or unit files
-changed in a release, re-copy them (`sudo ./deploy/install.sh ...` is idempotent).
+changed in a release, re-run `sudo ./deploy/install.sh ...` (idempotent).
+
+> Releases are produced by the [`release`](../.github/workflows/release.yml)
+> GitHub Actions workflow (push a `v*` tag): it cross-compiles `linux/amd64`,
+> `linux/arm64` and `linux/arm` (armv7) and uploads them with a `SHA256SUMS`
+> file that both updaters verify against. The repo is configurable via
+> `CRONPILOT_UPDATE_REPO` (default `ayushO4-dev/CronPilot`).
 
 ## 7. Uninstall
 

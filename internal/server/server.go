@@ -49,6 +49,8 @@ type Server struct {
 	termMu      sync.Mutex
 	termTickets map[string]termTicket
 	termLive    map[string]*liveTerm // persistent shells keyed by app user id
+
+	upd updateState // in-progress self-update state
 }
 
 // New constructs a Server.
@@ -112,6 +114,11 @@ func (s *Server) Handler() http.Handler {
 	// Settings
 	mux.HandleFunc("GET /api/settings", s.requireAuth(s.handleGetSettings))
 	mux.HandleFunc("PUT /api/settings", s.requireAuth(s.handlePutSettings))
+
+	// Self-update
+	mux.HandleFunc("GET /api/update/check", s.requireAuth(s.handleUpdateCheck))
+	mux.HandleFunc("GET /api/update/status", s.requireAuth(s.handleUpdateStatus))
+	mux.HandleFunc("POST /api/update/apply", s.requireAuth(s.handleUpdateApply))
 
 	// Health (unauthenticated)
 	mux.HandleFunc("GET /api/health", s.handleHealth)

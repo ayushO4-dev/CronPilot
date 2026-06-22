@@ -28,8 +28,12 @@ Environment=CRONPILOT_TLS_KEY=/etc/cronpilot/tls/key.pem
 #Environment=CRONPILOT_ADMIN_USER=admin
 #Environment=CRONPILOT_ADMIN_PASSWORD=
 
-ExecStart=/usr/local/bin/cronpilotd
-Restart=on-failure
+# The binary lives in a service-writable directory so the in-app updater can
+# replace it in place; /usr/local/bin/cronpilotd is a symlink to it for CLI use.
+ExecStart=/opt/cronpilot/bin/cronpilotd
+# Restart=always so a self-update can simply exit and be relaunched on the new
+# binary (it also recovers the daemon from crashes).
+Restart=always
 RestartSec=2s
 LimitNOFILE=65536
 

@@ -8,6 +8,7 @@ import type { Theme } from '../../lib/theme'
 import { Button, Panel } from '../../components/ui'
 import { ChangePasswordForm } from '../../components/ChangePasswordForm'
 import { TwoFactorPanel } from '../../components/TwoFactorPanel'
+import { UpdatePanel } from '../../components/UpdatePanel'
 import { duration } from '../../lib/format'
 import styles from './tabs.module.css'
 
@@ -43,6 +44,10 @@ export function Settings() {
 
       <Panel title="Two-factor authentication">
         <TwoFactorPanel />
+      </Panel>
+
+      <Panel title="Software update">
+        <UpdatePanel />
       </Panel>
 
       <Panel title="Server">
