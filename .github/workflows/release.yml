@@ -23,7 +23,7 @@ jobs:
       - name: Build frontend (embedded into the binary)
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
       - run: |
           cd web
           npm ci
