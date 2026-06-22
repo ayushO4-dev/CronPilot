@@ -8,12 +8,14 @@ import type {
   Rung,
   Task,
   TaskRun,
+  Trigger,
   TriggerType,
 } from "../../lib/types";
 import { Button, Loading, StatusDot } from "../../components/ui";
 import type { Status } from "../../components/ui";
 import { Modal } from "../../components/Modal";
 import { cronToEnglish } from "../../lib/cron";
+import { useTaskEditor } from "../../lib/taskEditor";
 import styles from "./Tasks.module.css";
 
 const CONTACT_KINDS = [
@@ -24,7 +26,12 @@ const CONTACT_KINDS = [
   "file",
   "flag",
   "taskState",
+  "rung",
 ];
+
+// Client-side rung id so freshly-added rungs can be referenced by an "if rung"
+// contact before the task is saved (the backend keeps provided ids).
+const rid = () => `rung_${Math.random().toString(36).slice(2, 10)}`;
 const ACTION_KINDS = ["command", "service", "flag", "taskToggle", "log"];
 const METRICS = ["cpu", "mem", "swap", "load1", "disk"];
 const OPS = [">", ">=", "<", "<=", "==", "!="];
@@ -51,10 +58,31 @@ function ago(iso?: string | null): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-function triggerSummary(t: Task["trigger"]): string {
+function rungTriggerSummary(r: Rung): string {
+  const t = r.trigger;
+  if (!t || t.type === "manual") return "manual";
   if (t.type === "interval") return `every ${t.intervalSeconds ?? 0}s`;
   if (t.type === "cron") return `cron ${t.cron ?? ""}`;
   return "manual";
+}
+
+// A task's schedule is the union of its rungs' triggers.
+function taskTriggerSummary(t: Task): string {
+  const rungs = t.rungs ?? [];
+  if (rungs.length === 0) return "no rungs";
+  const scheduled = rungs.filter(
+    (r) => r.trigger && r.trigger.type !== "manual",
+  ).length;
+  const plural = rungs.length > 1 ? "s" : "";
+  return scheduled > 0
+    ? `${scheduled}/${rungs.length} rung${plural} scheduled`
+    : `${rungs.length} rung${plural} · manual`;
+}
+
+function rungName(rungs: Rung[], id: string): string {
+  const i = rungs.findIndex((r) => r.id === id);
+  if (i < 0) return id ? `rung ${id}` : "rung —";
+  return rungs[i].label || `rung ${i + 1}`;
 }
 
 function statusOf(t: Task): Status {
@@ -62,10 +90,13 @@ function statusOf(t: Task): Status {
   return t.enabled ? "ok" : "muted";
 }
 
-function contactLabel(c: Contact): string {
+function contactLabel(c: Contact, rungs: Rung[] = []): string {
   const p = c.params;
   let s: string;
   switch (c.kind) {
+    case "rung":
+      s = `if ${rungName(rungs, ps(p, "rung"))}`;
+      break;
     case "service":
       s = `${ps(p, "unit")} ${ps(p, "state", "active")}`;
       break;
@@ -120,6 +151,7 @@ function defaultContact(kind: string): Contact {
     file: { path: "" },
     flag: { name: "" },
     taskState: { task: "", state: "enabled" },
+    rung: { rung: "" },
   };
   return { kind, params: m[kind] ?? {} };
 }
@@ -136,7 +168,7 @@ function defaultAction(kind: string): Action {
 }
 
 export function Tasks() {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { selectedId, select, newTaskId, setNewTaskId } = useTaskEditor();
   const qc = useQueryClient();
 
   const { data: list, isLoading } = useQuery({
@@ -145,27 +177,23 @@ export function Tasks() {
     refetchInterval: 5000,
   });
 
-  // Tracks a just-created task so cancelling its first edit deletes it again.
-  const [newTaskId, setNewTaskId] = useState<string | null>(null);
-
   const create = useMutation({
     mutationFn: () =>
       api.post<Task>("/api/tasks", {
         name: "New task",
         enabled: false,
-        trigger: { type: "manual" },
         rungs: [],
       }),
     onSuccess: (t) => {
       qc.invalidateQueries({ queryKey: ["tasks"] });
-      setSelectedId(t.id);
+      select(t.id);
       setNewTaskId(t.id);
     },
   });
 
   useEffect(() => {
-    if (!selectedId && list && list.length > 0) setSelectedId(list[0].id);
-  }, [list, selectedId]);
+    if (!selectedId && list && list.length > 0) select(list[0].id);
+  }, [list, selectedId, select]);
 
   // Sliding selection indicator on the left of the task list.
   const listRef = useRef<HTMLDivElement>(null);
@@ -216,7 +244,7 @@ export function Tasks() {
               key={t.id}
               data-task-id={t.id}
               className={`${styles.taskItem} ${selectedId === t.id ? styles.taskItemSel : ""}`}
-              onClick={() => setSelectedId(t.id)}
+              onClick={() => select(t.id)}
             >
               <div className={styles.taskItemTop}>
                 <StatusDot
@@ -226,7 +254,7 @@ export function Tasks() {
                 <span className={styles.taskName}>{t.name}</span>
               </div>
               <div className={styles.taskMeta}>
-                {triggerSummary(t.trigger)} · ran {ago(t.lastRun)}
+                {taskTriggerSummary(t)} · ran {ago(t.lastRun)}
               </div>
               <div className={styles.taskIdLine}>ID: {t.id}</div>
             </button>
@@ -243,7 +271,7 @@ export function Tasks() {
             isNew={selectedId === newTaskId}
             onSaved={() => setNewTaskId(null)}
             onDeleted={() => {
-              setSelectedId(null);
+              select(null);
               setNewTaskId(null);
             }}
           />
@@ -271,26 +299,27 @@ function TaskDetail({
   onDeleted: () => void;
 }) {
   const qc = useQueryClient();
-  const [editMode, setEditMode] = useState(false);
-  const [draft, setDraft] = useState<Task | null>(null);
+  const { editMode, draft, startEdit, setDraft, stopEdit } = useTaskEditor();
   const [error, setError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [runsLimit, setRunsLimit] = useState(20);
 
   const { data: task } = useQuery({
     queryKey: ["task", id],
     queryFn: () => api.get<Task>(`/api/tasks/${id}`),
   });
   const { data: runs } = useQuery({
-    queryKey: ["task-runs", id],
-    queryFn: () => api.get<TaskRun[]>(`/api/tasks/${id}/runs?limit=20`),
+    queryKey: ["task-runs", id, runsLimit],
+    queryFn: () =>
+      api.get<TaskRun[]>(`/api/tasks/${id}/runs?limit=${runsLimit}`),
     refetchInterval: 5000,
   });
 
-  // New (empty) tasks open directly in edit mode (runs once when the task loads).
+  // New (empty) tasks open directly in edit mode — unless a draft for this task
+  // is already in progress (e.g. preserved across a browser-tab switch).
   useEffect(() => {
-    if (task && task.rungs.length === 0) {
-      setDraft(structuredClone(task));
-      setEditMode(true);
+    if (task && task.rungs.length === 0 && !(draft && draft.id === task.id)) {
+      startEdit(structuredClone(task));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task?.id]);
@@ -318,7 +347,7 @@ function TaskDetail({
     mutationFn: (t: Task) => api.put<Task>(`/api/tasks/${id}`, t),
     onSuccess: () => {
       setError("");
-      setEditMode(false);
+      stopEdit();
       onSaved();
       invalidate();
     },
@@ -337,9 +366,8 @@ function TaskDetail({
 
   if (!task) return <Loading text="loading task" />;
 
-  const startEdit = () => {
-    setDraft(structuredClone(task));
-    setEditMode(true);
+  const beginEdit = () => {
+    startEdit(structuredClone(task));
     setError("");
   };
   const cancelEdit = () => {
@@ -348,19 +376,19 @@ function TaskDetail({
       doDelete();
       return;
     }
-    setEditMode(false);
-    setDraft(null);
+    stopEdit();
     setError("");
   };
 
-  const view = editMode && draft ? draft : task;
+  const editing = editMode && draft != null && draft.id === id;
+  const view = editing && draft ? draft : task;
 
   return (
     <div className={styles.detailInner}>
       <header className={styles.detailHead}>
         <div className={styles.detailTitleWrap}>
           <StatusDot status={statusOf(task)} />
-          {editMode && draft ? (
+          {editing && draft ? (
             <input
               className={styles.titleInput}
               value={draft.name}
@@ -374,7 +402,7 @@ function TaskDetail({
           </span>
         </div>
         <div className={styles.detailActions}>
-          {!editMode && (
+          {!editing && (
             <>
               <Button
                 small
@@ -386,7 +414,7 @@ function TaskDetail({
               <Button small onClick={() => toggle.mutate(!task.enabled)}>
                 {task.enabled ? "Disable" : "Enable"}
               </Button>
-              <Button small onClick={startEdit}>
+              <Button small onClick={beginEdit}>
                 Edit
               </Button>
               <Button
@@ -398,7 +426,7 @@ function TaskDetail({
               </Button>
             </>
           )}
-          {editMode && draft && (
+          {editing && draft && (
             <>
               <Button
                 small
@@ -426,24 +454,40 @@ function TaskDetail({
       )}
 
       <div className={styles.body}>
-        <TriggerSection
-          view={view}
-          editMode={editMode}
-          draft={draft}
-          setDraft={setDraft}
-        />
+        {editing && draft ? (
+          <div className={styles.triggerEdit}>
+            <span className={styles.sectionLabel}>Run as</span>
+            <input
+              className={styles.input}
+              value={draft.runAs ?? ""}
+              placeholder="user (optional; needs root/sudoers)"
+              onChange={(e) => setDraft({ ...draft, runAs: e.target.value })}
+            />
+          </div>
+        ) : (
+          view.runAs && (
+            <div className={styles.triggerRow}>
+              <span className={styles.sectionLabel}>Run as</span>
+              <span className={styles.triggerVal}>{view.runAs}</span>
+            </div>
+          )
+        )}
 
         <div className={styles.sectionLabel}>Ladder</div>
-        {editMode && draft ? (
+        {editing && draft ? (
           <LadderEditor draft={draft} setDraft={setDraft} tasks={allTasks} />
         ) : (
           <LadderView rungs={view.rungs} />
         )}
 
-        {!editMode && (
+        {!editing && (
           <>
             <div className={styles.sectionLabel}>Run history</div>
-            <RunHistory runs={runs ?? []} />
+            <RunHistory
+              runs={runs ?? []}
+              canLoadMore={(runs?.length ?? 0) >= runsLimit}
+              onLoadMore={() => setRunsLimit((n) => n + 20)}
+            />
           </>
         )}
       </div>
@@ -474,90 +518,67 @@ function TaskDetail({
   );
 }
 
-function TriggerSection({
-  view,
-  editMode,
-  draft,
-  setDraft,
+// RungTriggerEdit edits a single rung's optional schedule.
+function RungTriggerEdit({
+  trigger,
+  onChange,
 }: {
-  view: Task;
-  editMode: boolean;
-  draft: Task | null;
-  setDraft: (t: Task) => void;
+  trigger?: Trigger;
+  onChange: (t: Trigger | undefined) => void;
 }) {
-  if (!editMode || !draft) {
-    return (
-      <div className={styles.triggerRow}>
-        <span className={styles.sectionLabel}>Trigger</span>
-        <span className={styles.triggerVal}>
-          {triggerSummary(view.trigger)}
-        </span>
-        {view.runAs && (
-          <span className={styles.muted}>run as {view.runAs}</span>
-        )}
-      </div>
-    );
-  }
-  const t = draft.trigger;
-  const setType = (type: TriggerType) => {
-    const next = { ...draft, trigger: { ...t, type } };
-    if (type === "interval" && !next.trigger.intervalSeconds)
-      next.trigger.intervalSeconds = 60;
-    if (type === "cron" && !next.trigger.cron)
-      next.trigger.cron = "*/5 * * * *";
-    setDraft(next);
+  const type = trigger?.type ?? "manual";
+  const setType = (next: TriggerType) => {
+    if (next === "manual") return onChange(undefined);
+    if (next === "interval")
+      return onChange({
+        type: "interval",
+        intervalSeconds: trigger?.intervalSeconds || 60,
+      });
+    return onChange({ type: "cron", cron: trigger?.cron || "*/5 * * * *" });
   };
   return (
-    <div className={styles.triggerEdit}>
-      <span className={styles.sectionLabel}>Trigger</span>
+    <span
+        className={styles.rungTrigEdit}
+        style={{ marginLeft: '0.5rem' }}
+      >
       <select
         className={styles.select}
-        value={t.type}
+        value={type}
         onChange={(e) => setType(e.target.value as TriggerType)}
       >
         <option value="manual">manual</option>
         <option value="interval">interval</option>
         <option value="cron">cron</option>
       </select>
-      {t.type === "interval" && (
+      {type === "interval" && (
         <input
           className={styles.numInput}
           type="number"
           min={1}
-          value={t.intervalSeconds ?? 60}
+          value={trigger?.intervalSeconds ?? 60}
+          title="seconds"
           onChange={(e) =>
-            setDraft({
-              ...draft,
-              trigger: { ...t, intervalSeconds: Number(e.target.value) },
-            })
+            onChange({ type: "interval", intervalSeconds: Number(e.target.value) })
           }
         />
       )}
-      {t.type === "cron" && (
+      {type === "cron" && (
         <span className={styles.cronField}>
           <input
             className={styles.input}
-            value={t.cron ?? ""}
+            value={trigger?.cron ?? ""}
             placeholder="*/5 * * * *"
-            onChange={(e) =>
-              setDraft({ ...draft, trigger: { ...t, cron: e.target.value } })
-            }
+            onChange={(e) => onChange({ type: "cron", cron: e.target.value })}
           />
           <span className={styles.cronInfo} tabIndex={0}>
             ⓘ
             <span className={styles.cronTip}>
-              {cronToEnglish(t.cron ?? "")}
+              {cronToEnglish(trigger?.cron ?? "")}
             </span>
           </span>
         </span>
       )}
-      <input
-        className={styles.input}
-        value={draft.runAs ?? ""}
-        placeholder="run as (user, optional)"
-        onChange={(e) => setDraft({ ...draft, runAs: e.target.value })}
-      />
-    </div>
+    </span>
   );
 }
 
@@ -570,6 +591,9 @@ function LadderView({ rungs }: { rungs: Rung[] }) {
     <div className={styles.ladder}>
       {rungs.map((r, i) => (
         <div key={r.id ?? i} className={styles.rung}>
+          <span className={styles.rungTrig} title="when this rung runs">
+            {rungTriggerSummary(r)}
+          </span>
           <div className={styles.rungConds}>
             {r.contacts.length === 0 ? (
               <span className={`${styles.chip} ${styles.always}`}>ALWAYS</span>
@@ -584,7 +608,7 @@ function LadderView({ rungs }: { rungs: Rung[] }) {
                   <span
                     className={`${styles.chip} ${c.negate ? styles.chipNeg : ""}`}
                   >
-                    {contactLabel(c)}
+                    {contactLabel(c, rungs)}
                   </span>
                 </span>
               ))
@@ -607,12 +631,21 @@ function LadderView({ rungs }: { rungs: Rung[] }) {
   );
 }
 
-function RunHistory({ runs }: { runs: TaskRun[] }) {
+function RunHistory({
+  runs,
+  canLoadMore,
+  onLoadMore,
+}: {
+  runs: TaskRun[];
+  canLoadMore: boolean;
+  onLoadMore: () => void;
+}) {
   const [open, setOpen] = useState<number | null>(null);
   if (runs.length === 0) return <div className={styles.muted}>never run</div>;
   return (
-    <div className={styles.runs}>
-      {runs.map((r) => (
+    <div className={styles.runsWrap}>
+      <div className={styles.runs}>
+        {runs.map((r) => (
         <div key={r.id} className={styles.runRow}>
           <button
             className={styles.runHead}
@@ -630,7 +663,13 @@ function RunHistory({ runs }: { runs: TaskRun[] }) {
             <pre className={styles.runDetail}>{formatDetail(r.detail)}</pre>
           )}
         </div>
-      ))}
+        ))}
+      </div>
+      {canLoadMore && (
+        <button className={styles.loadMore} onClick={onLoadMore}>
+          load more
+        </button>
+      )}
     </div>
   );
 }
@@ -679,19 +718,16 @@ function LadderEditor({
       {draft.rungs.map((rung, ri) => (
         <div key={rung.id ?? ri} className={styles.rungEdit}>
           <div className={styles.rungEditHead}>
-            <span className={styles.rungNo}>Rung {ri + 1}</span>
-            <select
-              className={styles.select}
-              value={rung.match}
-              onChange={(e) =>
+            <span className={styles.rungNo}>{ri + 1}</span>
+            <span className={styles.vsep} />
+            <RungTriggerEdit
+              trigger={rung.trigger}
+              onChange={(t) =>
                 patch((d) => {
-                  d.rungs[ri].match = e.target.value as MatchMode;
+                  d.rungs[ri].trigger = t;
                 })
               }
-            >
-              <option value="all">ALL (AND)</option>
-              <option value="any">ANY (OR)</option>
-            </select>
+            />
             <span style={{ flex: 1 }} />
             <Button
               small
@@ -730,7 +766,7 @@ function LadderEditor({
                 })
               }
             >
-              remove rung
+              Delete
             </Button>
           </div>
 
@@ -739,6 +775,23 @@ function LadderEditor({
               <div className={styles.sectionLabel}>Conditions</div>
               {rung.contacts.map((c, ci) => (
                 <div key={c.id ?? ci} className={styles.editRow}>
+                  {ci > 0 ? (
+                    <select
+                      className={`${styles.select} ${styles.joinSelect}`}
+                      value={rung.match}
+                      title="how conditions combine"
+                      onChange={(e) =>
+                        patch((d) => {
+                          d.rungs[ri].match = e.target.value as MatchMode;
+                        })
+                      }
+                    >
+                      <option value="all">AND</option>
+                      <option value="any">OR</option>
+                    </select>
+                  ) : (
+                    <span className={styles.joinSpacer} />
+                  )}
                   <button
                     type="button"
                     className={`${styles.negBtn} ${c.negate ? styles.negBtnOn : ""}`}
@@ -774,6 +827,8 @@ function LadderEditor({
                   <ContactParams
                     c={c}
                     tasks={tasks}
+                    rungs={draft.rungs}
+                    selfId={rung.id}
                     onParam={(k, v) =>
                       patch((d) => {
                         d.rungs[ri].contacts[ci].params[k] = v;
@@ -865,6 +920,7 @@ function LadderEditor({
         onClick={() =>
           patch((d) => {
             d.rungs.push({
+              id: rid(),
               match: "all",
               contacts: [],
               actions: [defaultAction("command")],
@@ -911,10 +967,14 @@ function AddSelect({
 function ContactParams({
   c,
   tasks,
+  rungs,
+  selfId,
   onParam,
 }: {
   c: Contact;
   tasks: Task[];
+  rungs: Rung[];
+  selfId?: string;
   onParam: (k: string, v: unknown) => void;
 }) {
   const p = c.params;
@@ -928,6 +988,23 @@ function ContactParams({
     />
   );
   switch (c.kind) {
+    case "rung":
+      return (
+        <select
+          className={styles.select}
+          value={ps(p, "rung")}
+          onChange={(e) => onParam("rung", e.target.value)}
+        >
+          <option value="">— rung —</option>
+          {rungs.map((r, i) =>
+            r.id && r.id !== selfId ? (
+              <option key={r.id} value={r.id}>
+                {r.label || `Rung ${i + 1}`}
+              </option>
+            ) : null,
+          )}
+        </select>
+      );
     case "service":
       return (
         <>

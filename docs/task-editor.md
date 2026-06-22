@@ -8,16 +8,18 @@ model, every building block, and walks through worked examples.
 
 ```
 Task
- ├─ Trigger        when the task is evaluated (manual / interval / cron)
- └─ Rungs (1..n)   evaluated top to bottom on every run
+ └─ Rungs (1..n)   each rung runs when its own trigger fires
+     ├─ Trigger    when this rung runs (none / interval / cron) — optional
      ├─ Conditions ("contacts")   ALL (AND) or ANY (OR), each can be negated
      └─ Actions    ("coils")      run only if the rung's condition is true
 ```
 
-On every evaluation (a scheduler tick or **Run now**), each rung's conditions
-are checked; for every rung whose condition holds ("the rung is energized"),
-its actions execute in order. A rung with **no conditions is always energized**
-— that's how you write a plain scheduled job.
+Each rung carries its own optional **trigger**. When a rung's trigger fires,
+that rung alone is evaluated; if its conditions hold ("the rung is energized")
+its actions run in order. A rung with **no trigger** runs only on **Run now**
+(which evaluates the whole ladder top to bottom) or when reached by another
+task's action. A rung with **no conditions is always energized** — that's how
+you write a plain scheduled job.
 
 Everything a run did (which rungs fired, every action's output/exit status,
 duration) is recorded in the task's **run history**.
@@ -35,17 +37,23 @@ duration) is recorded in the task's **run history**.
   in `taskState` conditions and `taskToggle` actions (the editor shows a
   dropdown of task names and stores the ID).
 
-### Trigger
+### Triggers (per rung)
+
+Each rung has its own optional trigger, set in the rung header in the editor:
 
 | Type | Meaning |
 |---|---|
-| `manual` | never scheduled — runs only via **Run now** (or another task's action) |
-| `interval` | every N seconds |
-| `cron` | standard 5-field cron expression — the **ⓘ** box next to the input shows a plain-English translation on hover (e.g. `0 9 * * 1-5` → "every weekday at 9:00 AM") |
+| `manual` | no schedule — the rung runs only via **Run now**, or when reached by a full-task scan |
+| `interval` | run this rung every N seconds |
+| `cron` | standard 5-field cron expression — the **ⓘ** box shows a plain-English translation on hover (e.g. `0 9 * * 1-5` → "every weekday at 9:00 AM") |
 
-**Run as** (optional): the user account task commands run as. Only effective
-when the daemon runs as root (it uses `sudo -n -u <user>`); leave empty to run
-as the daemon's account.
+Different rungs can run on different schedules (one every 60 s, another on cron),
+and a rung's actions can set a flag — or toggle another task — that a second rung
+reacts to. The task list summarizes how many rungs are scheduled.
+
+**Run as** (task-wide, optional): the user account task commands run as. Only
+effective when the daemon runs as root (it uses `sudo -n -u <user>`); leave empty
+to run as the daemon's account.
 
 ### Conditions ("contacts")
 
@@ -61,6 +69,7 @@ conditions with **ALL (AND)** or **ANY (OR)**.
 | `file` | a path exists | path |
 | `flag` | a named virtual flag is set | name |
 | `taskState` | another task is enabled/disabled | task, state |
+| `rung` | another rung in this task was energized on its last evaluation | rung |
 
 **Flags** are in-memory booleans, set by `flag` actions and read by `flag`
 conditions — the glue for chaining tasks (see example 4). They reset to false
@@ -81,6 +90,9 @@ service operation); the rest of the actions still execute, and the failure
 detail is in the run history.
 
 ## Examples
+
+> Each example's **Trigger** belongs to its rung. Single-rung tasks just put the
+> schedule on that rung; multi-rung tasks can give each rung its own (or none).
 
 ### 1. Plain scheduled job (cron-style)
 

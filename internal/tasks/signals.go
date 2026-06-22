@@ -16,9 +16,10 @@ import (
 // evalContext caches expensive lookups (services, processes, metrics) for the
 // duration of one task evaluation, loading each only if a contact needs it.
 type evalContext struct {
-	ctx context.Context
-	now time.Time
-	m   *Manager
+	ctx    context.Context
+	now    time.Time
+	m      *Manager
+	taskID string // owning task, for resolving same-task "rung" contacts
 
 	services       map[string]string // unit -> activeState
 	servicesLoaded bool
@@ -28,8 +29,8 @@ type evalContext struct {
 	metricsLoaded  bool
 }
 
-func (m *Manager) newEvalContext(ctx context.Context) *evalContext {
-	return &evalContext{ctx: ctx, now: time.Now(), m: m}
+func (m *Manager) newEvalContext(ctx context.Context, taskID string) *evalContext {
+	return &evalContext{ctx: ctx, now: time.Now(), m: m, taskID: taskID}
 }
 
 // rungEnergized reports whether a rung's condition is satisfied.
@@ -82,6 +83,10 @@ func (c *evalContext) contactTrue(ct Contact) bool {
 		if t := c.m.tasks[pstr(ct.Params, "task")]; t != nil {
 			res = (want == "disabled") != t.Enabled
 		}
+	case "rung":
+		// True if the referenced rung (same task) was energized on its most
+		// recent evaluation.
+		res = c.m.lastEnergized[c.taskID+"/"+pstr(ct.Params, "rung")]
 	}
 	if ct.Negate {
 		res = !res

@@ -78,6 +78,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	}
 	s.clearSessionCookie(w)
 	if user != nil {
+		s.closeUserTerminal(user.ID)
 		s.audit(r, user.ID, user.Username, "logout", "")
 	}
 	w.WriteHeader(http.StatusNoContent)

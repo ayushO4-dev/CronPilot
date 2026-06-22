@@ -4,6 +4,10 @@
 package system
 
 import (
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/shirou/gopsutil/v4/cpu"
@@ -107,6 +111,9 @@ func Collect() (*Summary, error) {
 		s.CPU.ModelName = infos[0].ModelName
 		s.CPU.Mhz = infos[0].Mhz
 	}
+	if mhz := currentCPUMHz(); mhz > 0 {
+		s.CPU.Mhz = mhz
+	}
 	if per, err := cpu.Percent(200*time.Millisecond, true); err == nil {
 		s.CPU.PerCore = per
 		s.CPU.Percent = average(per)
@@ -154,18 +161,21 @@ func Collect() (*Summary, error) {
 
 // Sample is a lightweight periodic reading for the live stream.
 type Sample struct {
-	Time             int64     `json:"time"`
-	CPUPercent       float64   `json:"cpuPercent"`
-	PerCore          []float64 `json:"perCore"`
-	MemUsed          uint64    `json:"memUsed"`
-	MemTotal         uint64    `json:"memTotal"`
-	MemUsedPercent   float64   `json:"memUsedPercent"`
-	SwapUsed         uint64    `json:"swapUsed"`
-	SwapTotal        uint64    `json:"swapTotal"`
-	SwapUsedPercent  float64   `json:"swapUsedPercent"`
-	Load1            float64   `json:"load1"`
-	NetRxBytesPerSec float64   `json:"netRxBytesPerSec"`
-	NetTxBytesPerSec float64   `json:"netTxBytesPerSec"`
+	Time                 int64     `json:"time"`
+	CPUPercent           float64   `json:"cpuPercent"`
+	PerCore              []float64 `json:"perCore"`
+	MemUsed              uint64    `json:"memUsed"`
+	MemTotal             uint64    `json:"memTotal"`
+	MemUsedPercent       float64   `json:"memUsedPercent"`
+	SwapUsed             uint64    `json:"swapUsed"`
+	SwapTotal            uint64    `json:"swapTotal"`
+	SwapUsedPercent      float64   `json:"swapUsedPercent"`
+	Load1                float64   `json:"load1"`
+	CPUMhz               float64   `json:"cpuMhz"`
+	NetRxBytesPerSec     float64   `json:"netRxBytesPerSec"`
+	NetTxBytesPerSec     float64   `json:"netTxBytesPerSec"`
+	DiskReadBytesPerSec  float64   `json:"diskReadBytesPerSec"`
+	DiskWriteBytesPerSec float64   `json:"diskWriteBytesPerSec"`
 }
 
 // Sampler produces successive Samples. CPU% is computed from the delta in
@@ -174,14 +184,16 @@ type Sample struct {
 // concurrent streams (tabs, reconnects) never interfere. Network rates are
 // bytes/sec since the previous Sample.
 type Sampler struct {
-	lastCPU  []cpu.TimesStat
-	lastRx   uint64
-	lastTx   uint64
-	lastTime time.Time
-	primed   bool
+	lastCPU       []cpu.TimesStat
+	lastRx        uint64
+	lastTx        uint64
+	lastDiskRead  uint64
+	lastDiskWrite uint64
+	lastTime      time.Time
+	primed        bool
 }
 
-// NewSampler primes the CPU and network counters.
+// NewSampler primes the CPU, network and disk counters.
 func NewSampler() *Sampler {
 	s := &Sampler{}
 	if t, err := cpu.Times(true); err == nil {
@@ -189,9 +201,10 @@ func NewSampler() *Sampler {
 	}
 	if io, err := net.IOCounters(false); err == nil && len(io) > 0 {
 		s.lastRx, s.lastTx = io[0].BytesRecv, io[0].BytesSent
-		s.lastTime = time.Now()
-		s.primed = true
 	}
+	s.lastDiskRead, s.lastDiskWrite = diskIOTotals()
+	s.lastTime = time.Now()
+	s.primed = true
 	return s
 }
 
@@ -237,17 +250,69 @@ func (s *Sampler) Sample() (*Sample, error) {
 	if la, err := load.Avg(); err == nil {
 		out.Load1 = la.Load1
 	}
+	out.CPUMhz = currentCPUMHz()
+
+	elapsed := now.Sub(s.lastTime).Seconds()
 	if io, err := net.IOCounters(false); err == nil && len(io) > 0 {
 		rx, tx := io[0].BytesRecv, io[0].BytesSent
-		if s.primed {
-			if elapsed := now.Sub(s.lastTime).Seconds(); elapsed > 0 {
-				out.NetRxBytesPerSec = float64(deltaU64(rx, s.lastRx)) / elapsed
-				out.NetTxBytesPerSec = float64(deltaU64(tx, s.lastTx)) / elapsed
+		if s.primed && elapsed > 0 {
+			out.NetRxBytesPerSec = float64(deltaU64(rx, s.lastRx)) / elapsed
+			out.NetTxBytesPerSec = float64(deltaU64(tx, s.lastTx)) / elapsed
+		}
+		s.lastRx, s.lastTx = rx, tx
+	}
+	dr, dw := diskIOTotals()
+	if s.primed && elapsed > 0 {
+		out.DiskReadBytesPerSec = float64(deltaU64(dr, s.lastDiskRead)) / elapsed
+		out.DiskWriteBytesPerSec = float64(deltaU64(dw, s.lastDiskWrite)) / elapsed
+	}
+	s.lastDiskRead, s.lastDiskWrite = dr, dw
+	s.lastTime, s.primed = now, true
+	return out, nil
+}
+
+// diskIOTotals sums read/write bytes across real block devices (skipping loop
+// and ram devices), for computing aggregate disk throughput.
+func diskIOTotals() (read, write uint64) {
+	io, err := disk.IOCounters()
+	if err != nil {
+		return 0, 0
+	}
+	for name, c := range io {
+		if strings.HasPrefix(name, "loop") || strings.HasPrefix(name, "ram") {
+			continue
+		}
+		read += c.ReadBytes
+		write += c.WriteBytes
+	}
+	return read, write
+}
+
+// currentCPUMHz returns the average current CPU frequency in MHz. It prefers the
+// live cpufreq scaling value from sysfs (accurate on ARM/Raspberry Pi, where
+// /proc/cpuinfo has no "cpu MHz"), falling back to gopsutil's static value.
+func currentCPUMHz() float64 {
+	if paths, _ := filepath.Glob("/sys/devices/system/cpu/cpu[0-9]*/cpufreq/scaling_cur_freq"); len(paths) > 0 {
+		var sum float64
+		var n int
+		for _, p := range paths {
+			b, err := os.ReadFile(p)
+			if err != nil {
+				continue
+			}
+			if khz, err := strconv.ParseFloat(strings.TrimSpace(string(b)), 64); err == nil && khz > 0 {
+				sum += khz / 1000.0
+				n++
 			}
 		}
-		s.lastRx, s.lastTx, s.lastTime, s.primed = rx, tx, now, true
+		if n > 0 {
+			return sum / float64(n)
+		}
 	}
-	return out, nil
+	if infos, err := cpu.Info(); err == nil && len(infos) > 0 && infos[0].Mhz > 0 {
+		return infos[0].Mhz
+	}
+	return 0
 }
 
 // busyPercent returns the busy CPU percentage between two cumulative readings.

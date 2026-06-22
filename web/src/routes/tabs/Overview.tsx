@@ -9,6 +9,11 @@ import styles from "./tabs.module.css";
 
 const MIB = 1024 * 1024;
 
+function freqLabel(mhz: number): string {
+  if (!mhz || mhz <= 0) return "";
+  return mhz >= 1000 ? `${(mhz / 1000).toFixed(2)} GHz` : `${Math.round(mhz)} MHz`;
+}
+
 function cssVar(name: string, fallback: string): string {
   const v = getComputedStyle(document.documentElement)
     .getPropertyValue(name)
@@ -31,9 +36,12 @@ export function Overview() {
   if (!summary) return <Loading text="reading system" />;
 
   const cpu = latest?.cpuPercent ?? summary.cpu.percent;
+  const freq = latest?.cpuMhz ?? summary.cpu.mhz;
   const mem = latest?.memUsedPercent ?? summary.memory.usedPercent;
   const swap = latest?.swapUsedPercent ?? summary.swap.usedPercent;
   const disks = summary.disks ?? [];
+  const diskRead = latest?.diskReadBytesPerSec ?? 0;
+  const diskWrite = latest?.diskWriteBytesPerSec ?? 0;
   const perCore = latest?.perCore ?? summary.cpu.perCore ?? [];
 
   const xs = history.map((s) => s.time);
@@ -116,7 +124,7 @@ export function Overview() {
       </div>
 
       <div className={styles.grid3}>
-        <Panel title={`CPU  ${percent(cpu)}`}>
+        <Panel title={`CPU  ${percent(cpu)}${freqLabel(freq) ? ` · ${freqLabel(freq)}` : ""}`}>
           <Chart
             data={cpuData}
             series={[{ label: "CPU %", color: accent }]}
@@ -187,7 +195,14 @@ export function Overview() {
             ))}
           </div>
         </Panel>
-        <Panel title="Filesystems">
+        <Panel
+          title="Filesystems"
+          actions={
+            <span className={styles.muted}>
+              R {bps(diskRead)} · W {bps(diskWrite)}
+            </span>
+          }
+        >
           <table>
             <thead>
               <tr>

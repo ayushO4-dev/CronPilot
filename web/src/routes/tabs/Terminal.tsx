@@ -6,6 +6,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { api, isApiError } from '../../lib/api'
 import type { TerminalUser } from '../../lib/types'
+import { useTerminalSession } from '../../lib/terminalSession'
 import { Button, Input } from '../../components/ui'
 import styles from './Terminal.module.css'
 
@@ -15,22 +16,19 @@ interface TermSession {
 }
 
 export function Terminal() {
-  const [session, setSession] = useState<TermSession | null>(null)
-  const [endedUser, setEndedUser] = useState<string | null>(null)
+  const active = useTerminalSession((s) => s.active)
+  const endedUser = useTerminalSession((s) => s.endedUser)
+  const start = useTerminalSession((s) => s.start)
 
   return (
     <div className={styles.wrap}>
-      {session ? (
-        <TerminalView
-          key={session.ticket}
-          ticket={session.ticket}
-          onClosed={() => {
-            setEndedUser(session.user)
-            setSession(null)
-          }}
-        />
+      {active ? (
+        <TerminalView />
       ) : (
-        <AccountPicker endedUser={endedUser} onConnect={(s) => setSession(s)} />
+        <AccountPicker
+          endedUser={endedUser}
+          onConnect={(s) => start(s.user, s.ticket)}
+        />
       )}
     </div>
   )
@@ -162,10 +160,12 @@ function AccountPicker({
   )
 }
 
-function TerminalView({ ticket, onClosed }: { ticket: string; onClosed: () => void }) {
+function TerminalView() {
   const containerRef = useRef<HTMLDivElement>(null)
-  const closedRef = useRef(onClosed)
-  closedRef.current = onClosed
+  const end = useTerminalSession((s) => s.end)
+  const consumeTicket = useTerminalSession((s) => s.consumeTicket)
+  // Bumping gen re-runs the effect to reconnect after an unexpected drop.
+  const [gen, setGen] = useState(0)
 
   useEffect(() => {
     const container = containerRef.current
@@ -188,24 +188,49 @@ function TerminalView({ ticket, onClosed }: { ticket: string; onClosed: () => vo
     term.open(container)
     fit.fit()
 
+    // A ticket is only present on the first connect (it starts the shell).
+    // Reconnects omit it and reattach to the still-running session.
+    const ticket = consumeTicket()
+    const q = new URLSearchParams({ cols: String(term.cols), rows: String(term.rows) })
+    if (ticket) q.set('ticket', ticket)
     const proto = location.protocol === 'https:' ? 'wss' : 'ws'
-    const ws = new WebSocket(
-      `${proto}://${location.host}/api/terminal?cols=${term.cols}&rows=${term.rows}&ticket=${encodeURIComponent(ticket)}`,
-    )
+    const ws = new WebSocket(`${proto}://${location.host}/api/terminal?${q.toString()}`)
     ws.binaryType = 'arraybuffer'
 
     let disposed = false
+    let endedByShell = false
+    let reconnectTimer: number | undefined
+
     ws.onopen = () => term.focus()
     ws.onmessage = (e) => {
-      if (typeof e.data === 'string') term.write(e.data)
-      else term.write(new Uint8Array(e.data as ArrayBuffer))
+      if (typeof e.data === 'string') {
+        // Text frames are control messages; everything else is a plain notice.
+        try {
+          const msg = JSON.parse(e.data)
+          if (msg && msg.type === 'ended') {
+            endedByShell = true
+            return
+          }
+        } catch {
+          /* not JSON — fall through and print it */
+        }
+        term.write(e.data)
+      } else {
+        term.write(new Uint8Array(e.data as ArrayBuffer))
+      }
     }
     ws.onclose = () => {
-      term.write('\r\n\x1b[31m[disconnected]\x1b[0m\r\n')
-      // Give the user a beat to read the exit output, then return to the picker.
-      window.setTimeout(() => {
-        if (!disposed) closedRef.current()
-      }, 1200)
+      if (disposed) return
+      if (endedByShell) {
+        // The shell itself exited (e.g. `exit`): drop back to the picker.
+        end()
+        return
+      }
+      // Unexpected drop or tab switch: try to resume the live session.
+      term.write('\r\n\x1b[33m[reconnecting…]\x1b[0m\r\n')
+      reconnectTimer = window.setTimeout(() => {
+        if (!disposed) setGen((g) => g + 1)
+      }, 1000)
     }
 
     const dataDisp = term.onData((d) => {
@@ -226,13 +251,14 @@ function TerminalView({ ticket, onClosed }: { ticket: string; onClosed: () => vo
 
     return () => {
       disposed = true
+      if (reconnectTimer) window.clearTimeout(reconnectTimer)
       ro.disconnect()
       dataDisp.dispose()
       resizeDisp.dispose()
       ws.close()
       term.dispose()
     }
-  }, [ticket])
+  }, [gen, consumeTicket, end])
 
   return <div ref={containerRef} className={styles.term} />
 }

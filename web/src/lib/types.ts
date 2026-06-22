@@ -93,8 +93,11 @@ export interface Sample {
   swapTotal: number
   swapUsedPercent: number
   load1: number
+  cpuMhz: number
   netRxBytesPerSec: number
   netTxBytesPerSec: number
+  diskReadBytesPerSec: number
+  diskWriteBytesPerSec: number
 }
 
 export interface ServiceUnit {
@@ -159,6 +162,8 @@ export interface Action {
 export interface Rung {
   id?: string
   label?: string
+  /** Optional per-rung schedule. Absent = runs only on demand ("run now"). */
+  trigger?: Trigger
   match: MatchMode
   contacts: Contact[]
   actions: Action[]
@@ -169,7 +174,6 @@ export interface Task {
   name: string
   description?: string
   enabled: boolean
-  trigger: Trigger
   runAs?: string
   rungs: Rung[]
   createdAt?: string

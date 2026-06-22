@@ -382,6 +382,20 @@
   color: var(--muted);
   border-style: dashed;
 }
+.rungTrig {
+  flex: 0 0 auto;
+  min-width: 92px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-inset);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+.rungTrigEdit {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
 .coil {
   border-color: var(--accent);
   color: var(--accent);
@@ -399,10 +413,31 @@
 }
 
 /* ---- run history ---- */
+.runsWrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
 .runs {
   display: flex;
   flex-direction: column;
   border: 1px solid var(--border);
+  max-height: 320px;
+  overflow-y: auto;
+}
+.loadMore {
+  align-self: flex-start;
+  padding: 4px 10px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-inset);
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+.loadMore:hover {
+  background: var(--fg);
+  color: var(--bg);
 }
 .runRow {
   border-bottom: 1px solid var(--border);
@@ -468,15 +503,17 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  flex-wrap: wrap;
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--border);
   background: var(--bg-inset);
 }
 .rungNo {
-  color: var(--muted);
-  font-size: var(--fs-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  color: var(--accent);
+  font-size: var(--fs-md);
+  padding: 0 var(--space-2);
+  min-width: 1.5em;
+  text-align: center;
 }
 .editCols {
   display: grid;
@@ -495,6 +532,24 @@
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
+}
+/* AND/OR joiner to the left of each condition (from the 2nd on); the spacer
+   keeps the first condition's NOT aligned with the rest. */
+.joinSelect {
+  flex: 0 0 auto;
+  width: 58px;
+  min-width: 58px;
+}
+.joinSpacer {
+  flex: 0 0 58px;
+  width: 58px;
+}
+/* vertical divider after the rung number in the rung topbar */
+.vsep {
+  align-self: stretch;
+  width: 1px;
+  background: var(--border-strong);
+  margin: 0 var(--space-1);
 }
 .negToggle {
   display: inline-flex;

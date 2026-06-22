@@ -25,7 +25,7 @@ import (
 )
 
 // Version is the daemon version, surfaced in settings/health.
-const Version = "0.1.6"
+const Version = "0.2.0"
 
 // termTicket is a short-lived, one-time grant to open a terminal as a given
 // account (issued by handleTerminalSession after password verification).
@@ -48,6 +48,7 @@ type Server struct {
 
 	termMu      sync.Mutex
 	termTickets map[string]termTicket
+	termLive    map[string]*liveTerm // persistent shells keyed by app user id
 }
 
 // New constructs a Server.
@@ -56,6 +57,7 @@ func New(cfg *config.Config, st *store.Store, am *auth.Manager, tm *tasks.Manage
 		cfg: cfg, store: st, auth: am, tasks: tm, webFS: webFS, log: log,
 		procs:       processes.NewSampler(),
 		termTickets: map[string]termTicket{},
+		termLive:    map[string]*liveTerm{},
 	}
 	s.upgrader = websocket.Upgrader{
 		ReadBufferSize:  4096,
