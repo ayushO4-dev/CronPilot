@@ -25,7 +25,7 @@ import (
 )
 
 // Version is the daemon version, surfaced in settings/health.
-const Version = "0.2.2"
+const Version = "0.2.3"
 
 // termTicket is a short-lived, one-time grant to open a terminal as a given
 // account (issued by handleTerminalSession after password verification).
