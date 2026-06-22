@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { api, isApiError } from "../lib/api";
-import { useAuth } from "../lib/auth";
 import { Button } from "./ui";
 import type { UpdateCheck, UpdateStatus } from "../lib/types";
 
@@ -12,6 +11,19 @@ const col = {
   gap: "var(--space-3)",
   maxWidth: 440,
 } as const;
+const overlay = {
+  position: "fixed",
+  inset: 0,
+  zIndex: 1000,
+  background: "var(--bg)",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "var(--space-3)",
+  textAlign: "center",
+  padding: "var(--space-4)",
+} as const;
 
 function fmtBytes(n: number): string {
   if (n <= 0) return "0 B";
@@ -21,14 +33,13 @@ function fmtBytes(n: number): string {
 }
 
 export function UpdatePanel() {
-  const { logout } = useAuth();
   const [check, setCheck] = useState<UpdateCheck | null>(null);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState<UpdateStatus | null>(null);
-  const [updating, setUpdating] = useState(false);
+  const [installing, setInstalling] = useState(false);
   const timer = useRef<number | undefined>(undefined);
-  const updatingRef = useRef(false);
+  const restartingRef = useRef(false);
 
   useEffect(
     () => () => {
@@ -52,12 +63,18 @@ export function UpdatePanel() {
   async function doInstall() {
     setError("");
     try {
-      await api.post("/api/update/apply");
-      setStatus({ state: "downloading", downloaded: 0, total: 0 });
-      pollStatus();
+      await api.post("/api/update/apply"); // starts the server-side download
     } catch (e) {
       setError(isApiError(e) ? e.error : "update failed to start");
+      return;
     }
+    // Switch to the full-screen updating screen and end the session right away.
+    // We log out via the API (clearing the cookie) rather than the auth context
+    // so this component stays mounted to drive the rest of the flow.
+    setInstalling(true);
+    setStatus({ state: "downloading", downloaded: 0, total: 0 });
+    void api.post("/api/auth/logout").catch(() => {});
+    pollStatus();
   }
 
   function pollStatus() {
@@ -67,21 +84,17 @@ export function UpdatePanel() {
         setStatus(st);
         if (st.state === "error") {
           setError(st.error || "update failed");
-          return;
+          return; // overlay shows the error
         }
         if (st.state === "applying" || st.state === "restarting") {
-          // Point of no return: log out and show the updating overlay, then
-          // wait for the daemon to come back.
-          if (!updatingRef.current) {
-            updatingRef.current = true;
-            setUpdating(true);
-            void logout();
+          if (!restartingRef.current) {
+            restartingRef.current = true;
             waitForRestart();
           }
-          return;
+          return; // stop polling status; wait for the server to come back
         }
       } catch {
-        /* transient (e.g. server already restarting) — keep trying */
+        /* transient — the server may already be restarting */
       }
       timer.current = window.setTimeout(tick, 700);
     };
@@ -93,7 +106,7 @@ export function UpdatePanel() {
       try {
         const r = await fetch("/api/health", { cache: "no-store" });
         if (r.ok) {
-          window.location.reload();
+          window.location.reload(); // back online → reload to the login screen
           return;
         }
       } catch {
@@ -101,47 +114,71 @@ export function UpdatePanel() {
       }
       window.setTimeout(tick, 1500);
     };
-    // Give the old process time to exit before polling for the new one.
-    window.setTimeout(tick, 2500);
+    window.setTimeout(tick, 2500); // let the old process exit first
   }
 
-  if (updating) {
+  if (installing) {
+    const st = status?.state ?? "downloading";
+    const pct =
+      status && status.total > 0
+        ? Math.round((status.downloaded / status.total) * 100)
+        : 0;
     return (
-      <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 1000,
-          background: "var(--bg)",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "var(--space-3)",
-          textAlign: "center",
-          padding: "var(--space-4)",
-        }}
-      >
-        <div style={{ fontSize: "var(--fs-lg)", color: "var(--fg-strong)" }}>
-          Updating CronPilot…
-        </div>
-        <div style={{ ...muted, maxWidth: 420 }}>
-          Installing {status?.latest ?? "the update"} and restarting the server.
-          This page will reload automatically when it's back.
-        </div>
+      <div style={overlay}>
+        {error ? (
+          <>
+            <div style={{ fontSize: "var(--fs-lg)", color: "var(--err)" }}>
+              Update failed
+            </div>
+            <div style={{ ...muted, maxWidth: 420 }}>{error}</div>
+            <Button onClick={() => window.location.reload()}>Back to login</Button>
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize: "var(--fs-lg)", color: "var(--fg-strong)" }}>
+              {st === "downloading"
+                ? "Downloading update…"
+                : st === "applying"
+                  ? "Installing update…"
+                  : "Restarting server…"}
+            </div>
+            {st === "downloading" && status && (
+              <div style={{ width: 280 }}>
+                <div
+                  style={{
+                    height: 6,
+                    background: "var(--bg-inset)",
+                    border: "1px solid var(--border)",
+                  }}
+                >
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${pct}%`,
+                      background: "var(--accent)",
+                      transition: "width 0.2s",
+                    }}
+                  />
+                </div>
+                <div style={{ ...muted, marginTop: "var(--space-2)" }}>
+                  {fmtBytes(status.downloaded)}
+                  {status.total > 0 ? ` / ${fmtBytes(status.total)} (${pct}%)` : ""}
+                </div>
+              </div>
+            )}
+            <div style={{ ...muted, maxWidth: 420 }}>
+              You've been signed out. This page reloads automatically once{" "}
+              {status?.latest ?? "the update"} is live.
+            </div>
+          </>
+        )}
       </div>
     );
   }
 
-  const downloading = status?.state === "downloading";
-  const pct =
-    status && status.total > 0
-      ? Math.round((status.downloaded / status.total) * 100)
-      : 0;
-
   return (
     <div style={col}>
-      <Button onClick={doCheck} disabled={checking || !!status}>
+      <Button onClick={doCheck} disabled={checking}>
         {checking ? "checking…" : "Check for updates"}
       </Button>
 
@@ -171,37 +208,12 @@ export function UpdatePanel() {
                 {check.notes}
               </pre>
             )}
-            {downloading && (
-              <div>
-                <div
-                  style={{
-                    height: 6,
-                    background: "var(--bg-inset)",
-                    border: "1px solid var(--border)",
-                  }}
-                >
-                  <div
-                    style={{
-                      height: "100%",
-                      width: `${pct}%`,
-                      background: "var(--accent)",
-                      transition: "width 0.2s",
-                    }}
-                  />
-                </div>
-                <div style={muted}>
-                  downloading {fmtBytes(status!.downloaded)}
-                  {status!.total > 0
-                    ? ` / ${fmtBytes(status!.total)} (${pct}%)`
-                    : ""}
-                </div>
-              </div>
-            )}
-            <Button variant="primary" onClick={doInstall} disabled={!!status}>
-              {status ? "installing…" : `Install ${check.latest}`}
+            <Button variant="primary" onClick={doInstall}>
+              Install {check.latest}
             </Button>
             <div style={muted}>
-              The server will download the update, log you out, and restart.
+              The server downloads the update, signs you out, and restarts on the
+              new version.
             </div>
           </>
         ) : (

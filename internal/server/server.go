@@ -25,7 +25,7 @@ import (
 )
 
 // Version is the daemon version, surfaced in settings/health.
-const Version = "0.2.0"
+const Version = "0.2.1"
 
 // termTicket is a short-lived, one-time grant to open a terminal as a given
 // account (issued by handleTerminalSession after password verification).
@@ -115,13 +115,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/settings", s.requireAuth(s.handleGetSettings))
 	mux.HandleFunc("PUT /api/settings", s.requireAuth(s.handlePutSettings))
 
-	// Self-update
+	// Self-update (status is unauthenticated so the post-logout "updating"
+	// screen can keep polling progress through the restart).
 	mux.HandleFunc("GET /api/update/check", s.requireAuth(s.handleUpdateCheck))
-	mux.HandleFunc("GET /api/update/status", s.requireAuth(s.handleUpdateStatus))
 	mux.HandleFunc("POST /api/update/apply", s.requireAuth(s.handleUpdateApply))
 
-	// Health (unauthenticated)
+	// Health + update status (unauthenticated)
 	mux.HandleFunc("GET /api/health", s.handleHealth)
+	mux.HandleFunc("GET /api/update/status", s.handleUpdateStatus)
 
 	// SPA + static assets (catch-all)
 	mux.Handle("/", s.spaHandler())
