@@ -520,9 +520,6 @@ function UnitFileEditor({
           <span className={styles.sudoOk}>🔓 root</span>
         )}
         <span style={{ flex: 1 }} />
-        <Button small onClick={onDone}>
-          Cancel
-        </Button>
         {authorized && (
           <SaveSplit
             pending={save.isPending}
