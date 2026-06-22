@@ -2,10 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import type { Settings as SettingsT } from "../../lib/types";
-<<<<<<< HEAD
-=======
 import { useAuth } from "../../lib/auth";
->>>>>>> 42744a9fc97e4aa4c1d94a20530616788e6301bf
 import { initialTheme, saveTheme } from "../../lib/theme";
 import type { Theme } from "../../lib/theme";
 import { Button, Panel } from "../../components/ui";
@@ -16,10 +13,7 @@ import { duration } from "../../lib/format";
 import styles from "./tabs.module.css";
 
 export function Settings() {
-<<<<<<< HEAD
-=======
   const { user, logout } = useAuth();
->>>>>>> 42744a9fc97e4aa4c1d94a20530616788e6301bf
   const [theme, setTheme] = useState<Theme>(initialTheme());
   const { data } = useQuery({
     queryKey: ["settings"],
