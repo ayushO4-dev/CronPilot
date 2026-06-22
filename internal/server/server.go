@@ -97,6 +97,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/services/{name}/logs", s.requireAuth(s.handleServiceLogs))
 	mux.HandleFunc("GET /api/services/{name}/file", s.requireAuth(s.handleServiceFileGet))
 	mux.HandleFunc("PUT /api/services/{name}/file", s.requireAuth(s.handleServiceFilePut))
+	mux.HandleFunc("POST /api/services/{name}/sudo-check", s.requireAuth(s.handleServiceSudoCheck))
 	mux.HandleFunc("POST /api/services/{name}/{action}", s.requireAuth(s.handleServiceAction))
 
 	// Processes (running applications)

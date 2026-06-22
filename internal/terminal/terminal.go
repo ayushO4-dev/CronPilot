@@ -7,12 +7,14 @@ package terminal
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"os"
 	"os/exec"
 	"os/user"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/creack/pty"
@@ -178,6 +180,60 @@ func VerifyPassword(username, password string) bool {
 		_ = cmd.Process.Kill()
 		<-done
 		return false
+	}
+}
+
+// RunRoot runs a shell command as root via `su`, supplying root's password at
+// the prompt and capturing the command's combined output. If the daemon already
+// runs as root, the command runs directly (the password is ignored). A wrong
+// password yields a non-nil error and "Authentication failure" in the output.
+func RunRoot(ctx context.Context, password, command string) (string, error) {
+	if os.Geteuid() == 0 {
+		out, err := exec.CommandContext(ctx, "sh", "-c", command).CombinedOutput()
+		return string(out), err
+	}
+	cmd := exec.CommandContext(ctx, "su", "-c", command)
+	cmd.Env = withTerm(os.Environ())
+	ptmx, err := pty.Start(cmd)
+	if err != nil {
+		return "", err
+	}
+	defer ptmx.Close()
+
+	var mu sync.Mutex
+	var out strings.Builder
+	go func() {
+		if waitForPrompt(ptmx, 3*time.Second) {
+			_, _ = ptmx.Write([]byte(password + "\n"))
+		}
+		buf := make([]byte, 4096)
+		for {
+			n, rerr := ptmx.Read(buf)
+			if n > 0 {
+				mu.Lock()
+				out.Write(buf[:n])
+				mu.Unlock()
+			}
+			if rerr != nil {
+				return
+			}
+		}
+	}()
+
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	read := func() string { mu.Lock(); defer mu.Unlock(); return out.String() }
+	select {
+	case err := <-done:
+		return read(), err
+	case <-ctx.Done():
+		_ = cmd.Process.Kill()
+		<-done
+		return read(), ctx.Err()
+	case <-time.After(20 * time.Second):
+		_ = cmd.Process.Kill()
+		<-done
+		return read(), errors.New("timed out")
 	}
 }
 

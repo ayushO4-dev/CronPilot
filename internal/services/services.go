@@ -18,6 +18,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/ayushkanoje/cronpilot/internal/terminal"
 )
 
 var (
@@ -27,6 +29,8 @@ var (
 	ErrInvalidAction = errors.New("invalid action")
 	// ErrActionFailed wraps a failed management command (includes its output).
 	ErrActionFailed = errors.New("action failed")
+	// ErrAuth is returned when a supplied root password is incorrect.
+	ErrAuth = errors.New("incorrect root password")
 )
 
 // unitNameRe permits the safe charset systemd uses for .service unit names,
@@ -221,10 +225,12 @@ func ReadUnitFile(ctx context.Context, name string) (path, content string, writa
 	return path, string(b), fileWritable(path), nil
 }
 
-// WriteUnitFile overwrites the unit's on-disk file and reloads systemd. Writing
-// requires the daemon to have write access to the file (run as root, or grant
-// it). Returns the path written.
-func WriteUnitFile(ctx context.Context, name, content string) (string, error) {
+// WriteUnitFile overwrites the unit's on-disk file and, when reload is set, runs
+// daemon-reload. When password is non-empty the write is performed as root via
+// `su` (for files the daemon cannot write directly); otherwise it writes
+// directly, which requires the daemon to already have write access. Returns the
+// path written.
+func WriteUnitFile(ctx context.Context, name, content string, reload bool, password string) (string, error) {
 	path, err := fragmentPath(ctx, name)
 	if err != nil {
 		return "", err
@@ -232,16 +238,82 @@ func WriteUnitFile(ctx context.Context, name, content string) (string, error) {
 	if !validUnitPath(path) {
 		return path, fmt.Errorf("no editable unit file for %s", name)
 	}
+	if password != "" {
+		return path, writeViaRoot(ctx, path, content, reload, password)
+	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		if os.IsPermission(err) {
-			return path, fmt.Errorf("cannot write %s: the daemon needs write access (run as root, or grant it)", path)
+			return path, fmt.Errorf("cannot write %s: the daemon needs write access (use Sudo, or run as root)", path)
 		}
 		return path, err
 	}
-	if err := Reload(ctx); err != nil {
-		return path, fmt.Errorf("saved %s, but daemon-reload failed: %w", path, err)
+	if reload {
+		if err := Reload(ctx); err != nil {
+			return path, fmt.Errorf("saved %s, but daemon-reload failed: %w", path, err)
+		}
 	}
 	return path, nil
+}
+
+// writeViaRoot writes content to a daemon-owned temp file, then installs it into
+// place as root (via su with the supplied password), optionally reloading.
+func writeViaRoot(ctx context.Context, path, content string, reload bool, password string) error {
+	if strings.ContainsAny(path, "'\n") {
+		return fmt.Errorf("unsafe unit path")
+	}
+	tmp, err := os.CreateTemp("", "cronpilot-unit-*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+	if _, err := tmp.WriteString(content); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	_ = os.Chmod(tmpName, 0o644) // root must be able to read it
+
+	command := fmt.Sprintf("install -m 0644 '%s' '%s'", tmpName, path)
+	if reload {
+		command += " && systemctl daemon-reload"
+	}
+	out, err := terminal.RunRoot(ctx, password, command)
+	if err != nil {
+		if isAuthFailure(out) {
+			return ErrAuth
+		}
+		if msg := strings.TrimSpace(out); msg != "" {
+			return fmt.Errorf("%s", msg)
+		}
+		return err
+	}
+	return nil
+}
+
+// VerifyRoot checks the root password (a no-op when the daemon is already root).
+func VerifyRoot(ctx context.Context, password string) error {
+	if os.Geteuid() == 0 {
+		return nil
+	}
+	out, err := terminal.RunRoot(ctx, password, "true")
+	if err != nil {
+		if isAuthFailure(out) {
+			return ErrAuth
+		}
+		if msg := strings.TrimSpace(out); msg != "" {
+			return fmt.Errorf("%s", msg)
+		}
+		return err
+	}
+	return nil
+}
+
+func isAuthFailure(out string) bool {
+	l := strings.ToLower(out)
+	return strings.Contains(l, "authentication failure") || strings.Contains(l, "incorrect password")
 }
 
 // Reload runs `systemctl daemon-reload` (privileged) so edited unit files take

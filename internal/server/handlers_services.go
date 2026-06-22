@@ -73,20 +73,45 @@ func (s *Server) handleServiceFilePut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Content string `json:"content"`
+		Content  string `json:"content"`
+		Reload   bool   `json:"reload"`
+		Password string `json:"password"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	user, _, _ := auth.UserFrom(r.Context())
-	path, err := services.WriteUnitFile(r.Context(), name, req.Content)
+	path, err := services.WriteUnitFile(r.Context(), name, req.Content, req.Reload, req.Password)
 	s.audit(r, user.ID, user.Username, "service_edit_unit", name)
 	if err != nil {
+		if errors.Is(err, services.ErrAuth) {
+			writeError(w, http.StatusUnauthorized, err.Error())
+			return
+		}
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "path": path})
+}
+
+func (s *Server) handleServiceSudoCheck(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Password string `json:"password"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if err := services.VerifyRoot(r.Context(), req.Password); err != nil {
+		if errors.Is(err, services.ErrAuth) {
+			writeError(w, http.StatusUnauthorized, "incorrect root password")
+			return
+		}
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 func (s *Server) handleServiceAction(w http.ResponseWriter, r *http.Request) {

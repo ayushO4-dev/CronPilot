@@ -27,25 +27,32 @@
   transition: width 0.18s ease;
 }
 
-/* Floating panel beside the modal (e.g. a unit-file editor). */
+/* Floating panel beside the modal (e.g. a unit-file editor). Width + opacity
+   animate both ways; the inner card keeps a fixed size so it slides in/out
+   cleanly under overflow:hidden. */
 .rightPanel {
+  width: 0;
+  opacity: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: stretch;
+  transition:
+    width 0.2s ease,
+    opacity 0.2s ease;
+}
+.rightPanelOpen {
   width: 620px;
   max-width: 48vw;
+  opacity: 1;
+}
+.rightPanelInner {
+  width: 620px;
+  max-width: 48vw;
+  max-height: 88vh;
   display: flex;
   flex-direction: column;
   background: var(--bg-elev);
   border: 1px solid var(--border-strong);
-  animation: panelIn 0.18s ease;
-}
-@keyframes panelIn {
-  from {
-    opacity: 0;
-    transform: translateX(16px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
 }
 
 .head {

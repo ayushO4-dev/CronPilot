@@ -11,6 +11,7 @@ export function Modal({
   actions,
   width,
   rightPanel,
+  rightPanelOpen,
 }: {
   title: ReactNode
   onClose: () => void
@@ -20,6 +21,8 @@ export function Modal({
   // Optional floating panel rendered beside the modal (e.g. a file editor). The
   // modal + panel are centered as a group, so showing it shifts the modal left.
   rightPanel?: ReactNode
+  // Drives the open/close width+fade transition of rightPanel.
+  rightPanelOpen?: boolean
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -43,8 +46,11 @@ export function Modal({
           {actions && <footer className={styles.foot}>{actions}</footer>}
         </div>
         {rightPanel && (
-          <div className={styles.rightPanel} onMouseDown={(e) => e.stopPropagation()}>
-            {rightPanel}
+          <div
+            className={`${styles.rightPanel} ${rightPanelOpen ? styles.rightPanelOpen : ''}`}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className={styles.rightPanelInner}>{rightPanel}</div>
           </div>
         )}
       </div>
