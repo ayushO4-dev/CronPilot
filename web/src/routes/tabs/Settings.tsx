@@ -1,39 +1,32 @@
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { api } from '../../lib/api'
-import type { Settings as SettingsT } from '../../lib/types'
-import { useAuth } from '../../lib/auth'
-import { initialTheme, saveTheme } from '../../lib/theme'
-import type { Theme } from '../../lib/theme'
-import { Button, Panel } from '../../components/ui'
-import { ChangePasswordForm } from '../../components/ChangePasswordForm'
-import { TwoFactorPanel } from '../../components/TwoFactorPanel'
-import { UpdatePanel } from '../../components/UpdatePanel'
-import { duration } from '../../lib/format'
-import styles from './tabs.module.css'
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "../../lib/api";
+import type { Settings as SettingsT } from "../../lib/types";
+import { useAuth } from "../../lib/auth";
+import { initialTheme, saveTheme } from "../../lib/theme";
+import type { Theme } from "../../lib/theme";
+import { Button, Panel } from "../../components/ui";
+import { ChangePasswordForm } from "../../components/ChangePasswordForm";
+import { TwoFactorPanel } from "../../components/TwoFactorPanel";
+import { UpdatePanel } from "../../components/UpdatePanel";
+import { duration } from "../../lib/format";
+import styles from "./tabs.module.css";
 
 export function Settings() {
-  const { user, logout } = useAuth()
-  const [theme, setTheme] = useState<Theme>(initialTheme())
-  const { data } = useQuery({ queryKey: ['settings'], queryFn: () => api.get<SettingsT>('/api/settings') })
+  const { user, logout } = useAuth();
+  const [theme, setTheme] = useState<Theme>(initialTheme());
+  const { data } = useQuery({
+    queryKey: ["settings"],
+    queryFn: () => api.get<SettingsT>("/api/settings"),
+  });
 
   function changeTheme(t: Theme) {
-    setTheme(t)
-    void saveTheme(t)
+    setTheme(t);
+    void saveTheme(t);
   }
 
   return (
     <div className={styles.page}>
-      <header className={styles.settingsHead}>
-        <h2 className={styles.settingsTitle}>Settings</h2>
-        <div className={styles.settingsHeadRight}>
-          {user && <span className={styles.muted}>signed in as {user.username}</span>}
-          <Button small variant="danger" onClick={() => void logout()}>
-            Sign out
-          </Button>
-        </div>
-      </header>
-
       <div className={styles.settingsGrid}>
         {/* Account & security */}
         <div className={styles.settingsCol}>
@@ -52,10 +45,18 @@ export function Settings() {
             <div className={styles.row}>
               <span>Theme</span>
               <div className={styles.themeBtns}>
-                <Button small variant={theme === 'dark' ? 'primary' : 'default'} onClick={() => changeTheme('dark')}>
+                <Button
+                  small
+                  variant={theme === "dark" ? "primary" : "default"}
+                  onClick={() => changeTheme("dark")}
+                >
                   Dark
                 </Button>
-                <Button small variant={theme === 'light' ? 'primary' : 'default'} onClick={() => changeTheme('light')}>
+                <Button
+                  small
+                  variant={theme === "light" ? "primary" : "default"}
+                  onClick={() => changeTheme("light")}
+                >
                   Light
                 </Button>
               </div>
@@ -69,17 +70,17 @@ export function Settings() {
           <Panel title="Server">
             <dl className={styles.kv}>
               <dt>Version</dt>
-              <dd>{data?.version ?? '—'}</dd>
+              <dd>{data?.version ?? "—"}</dd>
               <dt>Mode</dt>
-              <dd>{data ? (data.dev ? 'development' : 'production') : '—'}</dd>
+              <dd>{data ? (data.dev ? "development" : "production") : "—"}</dd>
               <dt>Session idle timeout</dt>
-              <dd>{data ? duration(data.sessionIdleSeconds) : '—'}</dd>
+              <dd>{data ? duration(data.sessionIdleSeconds) : "—"}</dd>
               <dt>Session max lifetime</dt>
-              <dd>{data ? duration(data.sessionMaxSeconds) : '—'}</dd>
+              <dd>{data ? duration(data.sessionMaxSeconds) : "—"}</dd>
             </dl>
           </Panel>
         </div>
       </div>
     </div>
-  )
+  );
 }
