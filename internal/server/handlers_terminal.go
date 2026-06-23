@@ -125,11 +125,17 @@ func (s *Server) handleTerminal(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	// Find or create the live session for this user. A ticket always starts a
-	// fresh shell; otherwise reuse a running one (reattach) or start a default.
+	// Find or create the live session for this user. A ticket (from the account
+	// picker) always starts a fresh shell for the chosen account. Without a
+	// ticket we only ever REATTACH to a still-running shell — we never auto-start
+	// one. So when a shell exits (the user typed `exit`/`logout`), the next
+	// connection finds nothing to reattach to and is told the session ended,
+	// which sends the client back to the account picker instead of silently
+	// opening the daemon account.
 	s.termMu.Lock()
 	lt := s.termLive[owner]
-	if haveTicket || lt == nil || lt.isEnded() {
+	switch {
+	case haveTicket:
 		if lt != nil {
 			lt.close()
 		}
@@ -155,6 +161,11 @@ func (s *Server) handleTerminal(w http.ResponseWriter, r *http.Request) {
 			s.termMu.Unlock()
 		}()
 		s.audit(r, user.ID, user.Username, "terminal_open", shellUser)
+	case lt == nil || lt.isEnded():
+		// No ticket and no running shell to resume — back to the picker.
+		s.termMu.Unlock()
+		_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"type":"ended"}`))
+		return
 	}
 	s.termMu.Unlock()
 

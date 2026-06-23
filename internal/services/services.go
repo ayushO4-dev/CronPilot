@@ -29,8 +29,8 @@ var (
 	ErrInvalidAction = errors.New("invalid action")
 	// ErrActionFailed wraps a failed management command (includes its output).
 	ErrActionFailed = errors.New("action failed")
-	// ErrAuth is returned when a supplied root password is incorrect.
-	ErrAuth = errors.New("incorrect root password")
+	// ErrAuth is returned when the supplied sudo password is incorrect.
+	ErrAuth = errors.New("incorrect password")
 )
 
 // unitNameRe permits the safe charset systemd uses for .service unit names,
@@ -313,7 +313,9 @@ func VerifyRoot(ctx context.Context, password string) error {
 
 func isAuthFailure(out string) bool {
 	l := strings.ToLower(out)
-	return strings.Contains(l, "authentication failure") || strings.Contains(l, "incorrect password")
+	return strings.Contains(l, "incorrect password") || // sudo: "N incorrect password attempt(s)"
+		strings.Contains(l, "sorry, try again") || // sudo
+		strings.Contains(l, "authentication failure") // su / PAM
 }
 
 // Reload runs `systemctl daemon-reload` (privileged) so edited unit files take

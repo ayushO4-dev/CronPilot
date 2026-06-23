@@ -487,7 +487,7 @@ function UnitFileEditor({
           <div className={styles.sudoBox}>
             <Input
               type="password"
-              placeholder="root password"
+              placeholder="sudo password"
               value={sudoPw}
               autoFocus
               onChange={(e) => setSudoPw(e.target.value)}

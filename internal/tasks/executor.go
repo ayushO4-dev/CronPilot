@@ -21,7 +21,9 @@ type ActionResult struct {
 	Error  string `json:"error,omitempty"`
 }
 
-// execAction runs a single action. It assumes m.mu is held.
+// execAction runs a single action. Actions run without m.mu held (so slow
+// commands don't block the engine); the shared flag/task maps are guarded
+// individually where touched.
 func (m *Manager) execAction(ctx context.Context, a Action, defaultRunAs string) ActionResult {
 	switch a.Kind {
 	case "command":
@@ -38,19 +40,26 @@ func (m *Manager) execAction(ctx context.Context, a Action, defaultRunAs string)
 	case "flag":
 		name := pstr(a.Params, "name")
 		set := pbool(a.Params, "value")
+		m.mu.Lock()
 		m.flags[name] = set
+		m.mu.Unlock()
 		return ActionResult{Kind: "flag", Detail: name + "=" + boolStr(set), OK: true}
 	case "taskToggle":
 		id := pstr(a.Params, "task")
 		enabled := pbool(a.Params, "enabled")
 		res := ActionResult{Kind: "taskToggle", Detail: id + " -> " + enabledStr(enabled), OK: true}
-		if t := m.tasks[id]; t != nil {
+		m.mu.Lock()
+		t := m.tasks[id]
+		m.mu.Unlock()
+		if t != nil {
 			if err := m.store.SetTaskEnabled(id, enabled); err != nil {
 				res.OK = false
 				res.Error = err.Error()
 			} else {
+				m.mu.Lock()
 				t.Enabled = enabled
-				go m.reschedule() // applies after the current run releases m.mu
+				m.mu.Unlock()
+				go m.reschedule()
 			}
 		} else {
 			res.OK = false

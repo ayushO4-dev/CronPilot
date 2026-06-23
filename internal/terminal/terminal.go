@@ -14,7 +14,6 @@ import (
 	"os/user"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/creack/pty"
@@ -183,58 +182,24 @@ func VerifyPassword(username, password string) bool {
 	}
 }
 
-// RunRoot runs a shell command as root via `su`, supplying root's password at
-// the prompt and capturing the command's combined output. If the daemon already
-// runs as root, the command runs directly (the password is ignored). A wrong
-// password yields a non-nil error and "Authentication failure" in the output.
+// RunRoot runs a shell command with root privileges via `sudo`, authenticating
+// with the supplied password — the password of the account the daemon runs as
+// (the same one you would type for `sudo`), NOT root's own password. This works
+// on the common setups where root itself is locked (Raspberry Pi OS, Ubuntu,
+// WSL) and elevation is done with sudo. If the daemon already runs as root the
+// command runs directly. Returns combined output; a wrong password (or a daemon
+// account without sudo rights) yields a non-nil error.
 func RunRoot(ctx context.Context, password, command string) (string, error) {
 	if os.Geteuid() == 0 {
 		out, err := exec.CommandContext(ctx, "sh", "-c", command).CombinedOutput()
 		return string(out), err
 	}
-	cmd := exec.CommandContext(ctx, "su", "-c", command)
-	cmd.Env = withTerm(os.Environ())
-	ptmx, err := pty.Start(cmd)
-	if err != nil {
-		return "", err
-	}
-	defer ptmx.Close()
-
-	var mu sync.Mutex
-	var out strings.Builder
-	go func() {
-		if waitForPrompt(ptmx, 3*time.Second) {
-			_, _ = ptmx.Write([]byte(password + "\n"))
-		}
-		buf := make([]byte, 4096)
-		for {
-			n, rerr := ptmx.Read(buf)
-			if n > 0 {
-				mu.Lock()
-				out.Write(buf[:n])
-				mu.Unlock()
-			}
-			if rerr != nil {
-				return
-			}
-		}
-	}()
-
-	done := make(chan error, 1)
-	go func() { done <- cmd.Wait() }()
-	read := func() string { mu.Lock(); defer mu.Unlock(); return out.String() }
-	select {
-	case err := <-done:
-		return read(), err
-	case <-ctx.Done():
-		_ = cmd.Process.Kill()
-		<-done
-		return read(), ctx.Err()
-	case <-time.After(20 * time.Second):
-		_ = cmd.Process.Kill()
-		<-done
-		return read(), errors.New("timed out")
-	}
+	// -S reads the password from stdin; -k forces a fresh authentication so a
+	// cached sudo timestamp can't mask a wrong password; -p "" hides the prompt.
+	cmd := exec.CommandContext(ctx, "sudo", "-S", "-k", "-p", "", "sh", "-c", command)
+	cmd.Stdin = strings.NewReader(password + "\n")
+	out, err := cmd.CombinedOutput()
+	return string(out), err
 }
 
 // waitForPrompt reads PTY output until a password prompt appears or the

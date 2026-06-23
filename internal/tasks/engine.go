@@ -234,137 +234,156 @@ func (m *Manager) Runs(id string, limit int) ([]store.TaskRun, error) {
 	return m.store.ListTaskRuns(id, limit)
 }
 
-// runTask evaluates every rung and executes the actions of energized rungs. Used
-// by "run now" (a full top-to-bottom scan, regardless of per-rung triggers).
+// runTask kicks off a full top-to-bottom scan (used by "run now"). It records a
+// "running" entry and returns immediately; the actual evaluation/execution runs
+// on a separate goroutine so a long-running (or continuously running) action
+// never blocks the caller or the engine. The run-history entry is finalized with
+// the outcome and logs when execution completes.
 func (m *Manager) runTask(id, trigger string) *store.TaskRun {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	t := m.tasks[id]
 	if t == nil {
+		m.mu.Unlock()
+		return nil
+	}
+	rungs, runAs, name := t.Rungs, t.RunAs, t.Name
+	m.mu.Unlock()
+
+	run := m.startRun(id, trigger)
+	go m.execRun(id, name, runAs, rungs, "", run, trigger)
+	return run
+}
+
+// runRung kicks off a single rung (its own trigger fired), asynchronously, in
+// the same way as runTask.
+func (m *Manager) runRung(taskID, rungID, trigger string) *store.TaskRun {
+	m.mu.Lock()
+	t := m.tasks[taskID]
+	if t == nil {
+		m.mu.Unlock()
+		return nil
+	}
+	rungs, runAs, name := t.Rungs, t.RunAs, t.Name
+	m.mu.Unlock()
+
+	found := false
+	for i := range rungs {
+		if rungs[i].ID == rungID {
+			found = true
+			break
+		}
+	}
+	if !found {
 		return nil
 	}
 
+	run := m.startRun(taskID, trigger)
+	go m.execRun(taskID, name, runAs, rungs, rungID, run, trigger)
+	return run
+}
+
+// startRun inserts an in-progress run-history entry and marks the task running.
+func (m *Manager) startRun(taskID, trigger string) *store.TaskRun {
 	start := time.Now()
+	run := &store.TaskRun{TaskID: taskID, Time: start, Trigger: trigger, OK: true, Summary: "running…"}
+	if err := m.store.AddTaskRun(run); err != nil {
+		m.log.Error("record task run", "task", taskID, "err", err)
+	}
+	if err := m.store.UpdateTaskLastRun(taskID, start, "running"); err != nil {
+		m.log.Error("update task last run", "task", taskID, "err", err)
+	}
+	m.mu.Lock()
+	if t := m.tasks[taskID]; t != nil {
+		t.LastRun = &start
+		t.LastStatus = "running"
+	}
+	m.mu.Unlock()
+	return run
+}
+
+// execRun evaluates rungs (all of them, or only onlyRungID) and executes the
+// actions of energized rungs, then finalizes the run-history entry. It does NOT
+// hold m.mu during evaluation/execution — the shared maps are guarded
+// individually inside contactTrue/execAction — so a slow action does not block
+// scheduling or other runs.
+func (m *Manager) execRun(taskID, name, runAs string, rungs []Rung, onlyRungID string, run *store.TaskRun, trigger string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
-	ec := m.newEvalContext(ctx, id)
+	ec := m.newEvalContext(ctx, taskID)
 
 	var results []ActionResult
 	fired := 0
-	ok := true
-	// Compute every rung's energized state against the *previous* values, then
-	// commit together, so "rung" contacts observe the last evaluation (not this
-	// pass's earlier rungs).
-	newEnergized := make(map[string]bool, len(t.Rungs))
-	for _, r := range t.Rungs {
+	okAll := true
+	energized := make(map[string]bool, len(rungs))
+	for i := range rungs {
+		r := rungs[i]
+		if onlyRungID != "" && r.ID != onlyRungID {
+			continue
+		}
 		en := ec.rungEnergized(r)
-		newEnergized[id+"/"+r.ID] = en
+		energized[taskID+"/"+r.ID] = en
 		if !en {
 			continue
 		}
 		fired++
 		for _, a := range r.Actions {
-			res := m.execAction(ctx, a, t.RunAs)
+			res := m.execAction(ctx, a, runAs)
 			if !res.OK {
-				ok = false
+				okAll = false
 			}
 			results = append(results, res)
 		}
 	}
-	for k, v := range newEnergized {
+	// Commit energized state together, so "rung" contacts observe the previous
+	// evaluation rather than this pass's earlier rungs.
+	m.mu.Lock()
+	for k, v := range energized {
 		m.lastEnergized[k] = v
 	}
+	m.mu.Unlock()
 
 	status := "ok"
-	if !ok {
-		status = "error"
-	}
-	summary := fmt.Sprintf("%d rung(s) energized, %d action(s)", fired, len(results))
-	if !ok {
-		summary += " — with errors"
-	}
-	m.log.Info("task run", "task", t.Name, "trigger", trigger, "fired", fired, "ok", ok)
-	return m.recordRun(t, start, trigger, status, summary, ok, results)
-}
-
-// runRung evaluates a single rung (its own trigger fired) and runs its actions
-// if energized. Records the rung's energized state and one run-history entry.
-func (m *Manager) runRung(taskID, rungID, trigger string) *store.TaskRun {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	t := m.tasks[taskID]
-	if t == nil {
-		return nil
-	}
-	var rp *Rung
-	for i := range t.Rungs {
-		if t.Rungs[i].ID == rungID {
-			rp = &t.Rungs[i]
-			break
-		}
-	}
-	if rp == nil {
-		return nil
-	}
-
-	start := time.Now()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-	ec := m.newEvalContext(ctx, taskID)
-
-	energized := ec.rungEnergized(*rp)
-	var results []ActionResult
-	ok := true
-	if energized {
-		for _, a := range rp.Actions {
-			res := m.execAction(ctx, a, t.RunAs)
-			if !res.OK {
-				ok = false
-			}
-			results = append(results, res)
-		}
-	}
-	m.lastEnergized[taskID+"/"+rungID] = energized // commit after evaluation
-
-	status := "ok"
-	if !ok {
+	if !okAll {
 		status = "error"
 	}
 	var summary string
-	if !energized {
-		summary = fmt.Sprintf("rung %s not energized", rungLabel(rp))
-	} else {
-		summary = fmt.Sprintf("rung %s energized, %d action(s)", rungLabel(rp), len(results))
-		if !ok {
-			summary += " — with errors"
+	if onlyRungID != "" {
+		label := onlyRungID
+		for i := range rungs {
+			if rungs[i].ID == onlyRungID {
+				label = rungLabel(&rungs[i])
+				break
+			}
 		}
+		if !energized[taskID+"/"+onlyRungID] {
+			summary = fmt.Sprintf("rung %s not energized", label)
+		} else {
+			summary = fmt.Sprintf("rung %s energized, %d action(s)", label, len(results))
+		}
+	} else {
+		summary = fmt.Sprintf("%d rung(s) energized, %d action(s)", fired, len(results))
 	}
-	m.log.Info("rung run", "task", t.Name, "rung", rungID, "trigger", trigger, "energized", energized, "ok", ok)
-	return m.recordRun(t, start, trigger, status, summary, ok, results)
-}
+	if !okAll {
+		summary += " — with errors"
+	}
 
-// recordRun persists a run-history entry and updates the task's last-run state.
-// Assumes m.mu is held.
-func (m *Manager) recordRun(t *Task, start time.Time, trigger, status, summary string, ok bool, results []ActionResult) *store.TaskRun {
 	detail, _ := json.Marshal(results)
-	run := &store.TaskRun{
-		TaskID:     t.ID,
-		Time:       start,
-		Trigger:    trigger,
-		OK:         ok,
-		Summary:    summary,
-		Detail:     string(detail),
-		DurationMs: time.Since(start).Milliseconds(),
+	run.OK = okAll
+	run.Summary = summary
+	run.Detail = string(detail)
+	run.DurationMs = time.Since(run.Time).Milliseconds()
+	if err := m.store.UpdateTaskRun(run); err != nil {
+		m.log.Error("update task run", "task", taskID, "err", err)
 	}
-	if err := m.store.AddTaskRun(run); err != nil {
-		m.log.Error("record task run", "task", t.ID, "err", err)
+	if err := m.store.UpdateTaskLastRun(taskID, run.Time, status); err != nil {
+		m.log.Error("update task last run", "task", taskID, "err", err)
 	}
-	if err := m.store.UpdateTaskLastRun(t.ID, start, status); err != nil {
-		m.log.Error("update task last run", "task", t.ID, "err", err)
+	m.mu.Lock()
+	if t := m.tasks[taskID]; t != nil {
+		t.LastStatus = status
 	}
-	t.LastRun = &start
-	t.LastStatus = status
-	return run
+	m.mu.Unlock()
+	m.log.Info("task run", "task", name, "trigger", trigger, "fired", fired, "ok", okAll)
 }
 
 func rungLabel(r *Rung) string {

@@ -105,7 +105,7 @@ func (s *Server) handleServiceSudoCheck(w http.ResponseWriter, r *http.Request) 
 	}
 	if err := services.VerifyRoot(r.Context(), req.Password); err != nil {
 		if errors.Is(err, services.ErrAuth) {
-			writeError(w, http.StatusUnauthorized, "incorrect root password")
+			writeError(w, http.StatusUnauthorized, "incorrect password")
 			return
 		}
 		writeError(w, http.StatusBadGateway, err.Error())

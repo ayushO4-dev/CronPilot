@@ -134,6 +134,15 @@ func (s *Store) AddTaskRun(r *TaskRun) error {
 	return nil
 }
 
+// UpdateTaskRun updates the outcome of an existing run (its status, summary,
+// logs and duration) once asynchronous execution completes.
+func (s *Store) UpdateTaskRun(r *TaskRun) error {
+	_, err := s.db.Exec(
+		`UPDATE task_runs SET ok=?, summary=?, detail=?, duration_ms=? WHERE id=?`,
+		boolToInt(r.OK), r.Summary, r.Detail, r.DurationMs, r.ID)
+	return err
+}
+
 // ListTaskRuns returns recent runs for a task, newest first.
 func (s *Store) ListTaskRuns(taskID string, limit int) ([]TaskRun, error) {
 	if limit <= 0 || limit > 500 {

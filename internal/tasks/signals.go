@@ -77,16 +77,22 @@ func (c *evalContext) contactTrue(ct Contact) bool {
 		_, err := os.Stat(pstr(ct.Params, "path"))
 		res = err == nil
 	case "flag":
+		c.m.mu.Lock()
 		res = c.m.flags[pstr(ct.Params, "name")]
+		c.m.mu.Unlock()
 	case "taskState":
 		want := pstr(ct.Params, "state") // enabled | disabled
+		c.m.mu.Lock()
 		if t := c.m.tasks[pstr(ct.Params, "task")]; t != nil {
 			res = (want == "disabled") != t.Enabled
 		}
+		c.m.mu.Unlock()
 	case "rung":
 		// True if the referenced rung (same task) was energized on its most
 		// recent evaluation.
+		c.m.mu.Lock()
 		res = c.m.lastEnergized[c.taskID+"/"+pstr(ct.Params, "rung")]
+		c.m.mu.Unlock()
 	}
 	if ct.Negate {
 		res = !res
