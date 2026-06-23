@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -293,22 +294,34 @@ func writeViaRoot(ctx context.Context, path, content string, reload bool, passwo
 	return nil
 }
 
-// VerifyRoot checks the root password (a no-op when the daemon is already root).
-func VerifyRoot(ctx context.Context, password string) error {
+// VerifyRoot checks that the supplied password elevates to root via sudo (a
+// no-op when the daemon already runs as root). It returns the raw sudo output
+// (for diagnostics/logging) and an error; ErrAuth means the password was
+// rejected for the daemon's account.
+func VerifyRoot(ctx context.Context, password string) (string, error) {
 	if os.Geteuid() == 0 {
-		return nil
+		return "", nil
 	}
 	out, err := terminal.RunRoot(ctx, password, "true")
 	if err != nil {
 		if isAuthFailure(out) {
-			return ErrAuth
+			return out, ErrAuth
 		}
 		if msg := strings.TrimSpace(out); msg != "" {
-			return fmt.Errorf("%s", msg)
+			return out, fmt.Errorf("%s", msg)
 		}
-		return err
+		return out, err
 	}
-	return nil
+	return out, nil
+}
+
+// DaemonUser returns the OS account the daemon runs as — the account whose
+// password sudo authenticates. Used to make sudo errors self-explanatory.
+func DaemonUser() string {
+	if u, err := user.Current(); err == nil && u.Username != "" {
+		return u.Username
+	}
+	return fmt.Sprintf("uid %d", os.Geteuid())
 }
 
 func isAuthFailure(out string) bool {

@@ -3,7 +3,9 @@ package server
 import (
 	"errors"
 	"net/http"
+	"os"
 	"strconv"
+	"strings"
 
 	"github.com/ayushkanoje/cronpilot/internal/auth"
 	"github.com/ayushkanoje/cronpilot/internal/services"
@@ -86,7 +88,8 @@ func (s *Server) handleServiceFilePut(w http.ResponseWriter, r *http.Request) {
 	s.audit(r, user.ID, user.Username, "service_edit_unit", name)
 	if err != nil {
 		if errors.Is(err, services.ErrAuth) {
-			writeError(w, http.StatusUnauthorized, err.Error())
+			writeError(w, http.StatusUnauthorized,
+				"sudo rejected the password for the account the server runs as ("+services.DaemonUser()+")")
 			return
 		}
 		writeError(w, http.StatusBadGateway, err.Error())
@@ -103,9 +106,17 @@ func (s *Server) handleServiceSudoCheck(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if err := services.VerifyRoot(r.Context(), req.Password); err != nil {
+	out, err := services.VerifyRoot(r.Context(), req.Password)
+	if err != nil {
+		who := services.DaemonUser()
+		s.log.Warn("service sudo-check failed",
+			"daemon_user", who, "euid", os.Geteuid(), "sudo_output", strings.TrimSpace(out))
 		if errors.Is(err, services.ErrAuth) {
-			writeError(w, http.StatusUnauthorized, "incorrect password")
+			// Name the account so it's obvious whose password sudo wants — if it
+			// says e.g. "cronpilot" (a passwordless system account), that, not a
+			// typo, is the problem.
+			writeError(w, http.StatusUnauthorized,
+				"sudo rejected the password for the account the server runs as ("+who+")")
 			return
 		}
 		writeError(w, http.StatusBadGateway, err.Error())
